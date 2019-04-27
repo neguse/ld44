@@ -158,7 +158,9 @@ func (b *Board) Initialize() {
 	}
 }
 
-func (b *Baord) MarkErase()
+func (b *Board) MarkErase() {
+
+}
 
 func (b *Board) At(cx, cy int) (*Color, bool) {
 	if 0 <= cx && cx < BoardWidth {
