@@ -3,41 +3,72 @@ package main
 import "testing"
 
 func TestBoardMarkErase(t *testing.T) {
-	b := NewBoard()
-	b.Cell[1][1] = &Stone{Color: Red}
-	b.Cell[2][1] = &Stone{Color: Red}
-	b.Cell[3][1] = &Stone{Color: Red}
-	b.Cell[4][1] = &Stone{Color: Green}
-	b.MarkErase()
-	if !b.Cell[1][1].Erased {
-		t.Fail()
+	type C struct {
+		x, y int
+		c    Color
+		e    bool
 	}
-	if !b.Cell[2][1].Erased {
-		t.Fail()
+	type Case struct {
+		t string
+		c []C
 	}
-	if !b.Cell[3][1].Erased {
-		t.Fail()
-	}
-	if b.Cell[4][1].Erased {
-		t.Fail()
-	}
+	cases := []Case{
+		Case{
+			"horizontal",
+			[]C{
+				C{1, 1, Red, true},
+				C{2, 1, Red, true},
+				C{3, 1, Red, true},
+				C{4, 1, Green, false},
+			},
+		},
+		Case{
+			"horizontal not",
+			[]C{
+				C{1, 1, Red, false},
+				C{2, 1, Red, false},
+				C{3, 1, Green, false},
+				C{4, 1, Red, false},
+			},
+		},
+		Case{
+			"vertical",
+			[]C{
+				C{1, 1, Red, true},
+				C{1, 2, Red, true},
+				C{1, 3, Red, true},
+				C{1, 4, Green, false},
+			},
+		},
 
-	b2 := NewBoard()
-	b2.Cell[1][1] = &Stone{Color: Red}
-	b2.Cell[2][1] = &Stone{Color: Red}
-	b2.Cell[3][1] = &Stone{Color: Green}
-	b2.Cell[4][1] = &Stone{Color: Red}
-	b2.MarkErase()
-	if b2.Cell[1][1].Erased {
-		t.Error(1, 1)
+		Case{
+			"vertical not",
+			[]C{
+				C{1, 1, Red, false},
+				C{1, 2, Red, false},
+				C{1, 3, Green, false},
+				C{1, 4, Red, false},
+			},
+		},
 	}
-	if b2.Cell[2][1].Erased {
-		t.Error(2, 1)
-	}
-	if b2.Cell[3][1].Erased {
-		t.Error(3, 1)
-	}
-	if b2.Cell[4][1].Erased {
-		t.Error(4, 1)
+	for _, cs := range cases {
+		b := NewBoard()
+		for _, c := range cs.c {
+			if cell, ok := b.At(c.x, c.y); ok {
+				(*cell) = &Stone{Color: c.c}
+			} else {
+				t.Error(cs.t, "at fail", c.x, c.y)
+			}
+		}
+		b.MarkErase()
+		for _, c := range cs.c {
+			if cell, ok := b.At(c.x, c.y); ok {
+				if (*cell).Erased != c.e {
+					t.Error(cs.t, "erased mismatch", c.x, c.y, c.e, (*cell).Erased)
+				}
+			} else {
+				t.Error(cs.t, "at fail", c.x, c.y)
+			}
+		}
 	}
 }

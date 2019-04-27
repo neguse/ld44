@@ -142,7 +142,6 @@ func (g *Game) IsPickCollide(px, py int) bool {
 
 func (g *Game) FixPick() {
 	for i, p := range g.Pick {
-		log.Println(i, g.PickX, g.PickY-i, p.Color)
 		if a, ok := g.Board.At(g.PickX, g.PickY-i); ok {
 			if *a == nil || (*a).Color == None {
 				*a = p
@@ -212,7 +211,6 @@ func (b *Board) MarkErase() {
 			if right >= 3 {
 				for r := 0; r < right; r++ {
 					if c, ok := b.At(cx+r, cy); ok && *c != nil {
-						log.Println("mark as erased", cx+r, cy)
 						(*c).Erased = true
 					}
 				}
@@ -220,6 +218,37 @@ func (b *Board) MarkErase() {
 			cx += right
 		}
 	}
+
+	// vertical
+	consequentDown := func(cx, cy int) int {
+		n := 1
+		if c, ok := b.At(cx, cy); ok && *c != nil {
+			for y := 1; cy+y < BoardHeight; y++ {
+				if c2, ok := b.At(cx, cy+y); ok && *c2 != nil {
+					if (*c).Color == (*c2).Color && (*c).Color != Wall {
+						n++
+						continue
+					}
+				}
+				break
+			}
+		}
+		return n
+	}
+	for cx := 0; cx < BoardWidth; cx++ {
+		for cy := 0; cy < BoardHeight; {
+			down := consequentDown(cx, cy)
+			if down >= 3 {
+				for d := 0; d < down; d++ {
+					if c, ok := b.At(cx, cy+d); ok && *c != nil {
+						(*c).Erased = true
+					}
+				}
+			}
+			cy += down
+		}
+	}
+
 }
 
 func (b *Board) Erase() {
