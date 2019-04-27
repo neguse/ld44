@@ -158,7 +158,7 @@ func (g *Game) FixPick() {
 }
 
 func (g *Game) Render(r *ebiten.Image) {
-	ebitenutil.DebugPrint(r, "Hello, World!")
+	ebitenutil.DebugPrint(r, "push HJKL key and match three!")
 	ox := 10
 	oy := ScreenHeight - StoneHeight*BoardHeight
 	g.Board.Render(r, ox, oy)
