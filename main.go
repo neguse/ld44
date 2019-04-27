@@ -321,8 +321,6 @@ func (b *Board) MarkErase() {
 	lines = append(lines, RightDownLines()...)
 	lines = append(lines, RightUpLines()...)
 
-	log.Println(lines)
-
 	for _, line := range lines {
 		conseq := 0
 		for i := 1; i <= len(line); i++ {
