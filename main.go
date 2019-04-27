@@ -241,67 +241,116 @@ func (b *Board) Initialize() {
 	}
 }
 
-func (b *Board) MarkErase() {
-	// horizontal
-	consequentRight := func(cx, cy int) int {
-		n := 1
-		if c, ok := b.At(cx, cy); ok && *c != nil {
-			for x := 1; cx+x < BoardWidth; x++ {
-				if c2, ok := b.At(cx+x, cy); ok && *c2 != nil {
-					if (*c).Color == (*c2).Color && (*c).Color != Wall {
-						n++
-						continue
-					}
-				}
-				break
-			}
-		}
-		return n
-	}
+type Point struct {
+	x, y int
+}
+
+func HorizontalLines() [][]Point {
+	var lines [][]Point
 	for cy := 0; cy < BoardHeight; cy++ {
-		for cx := 0; cx < BoardWidth; {
-			right := consequentRight(cx, cy)
-			if right >= 3 {
-				for r := 0; r < right; r++ {
-					if c, ok := b.At(cx+r, cy); ok && *c != nil {
-						(*c).Erased = true
-					}
-				}
-			}
-			cx += right
+		var line []Point
+		for cx := 0; cx < BoardWidth; cx++ {
+			line = append(line, Point{cx, cy})
 		}
+		lines = append(lines, line)
 	}
+	return lines
+}
 
-	// vertical
-	consequentDown := func(cx, cy int) int {
-		n := 1
-		if c, ok := b.At(cx, cy); ok && *c != nil {
-			for y := 1; cy+y < BoardHeight; y++ {
-				if c2, ok := b.At(cx, cy+y); ok && *c2 != nil {
-					if (*c).Color == (*c2).Color && (*c).Color != Wall {
-						n++
-						continue
-					}
-				}
+func VerticalLines() [][]Point {
+	var lines [][]Point
+	for cx := 0; cx < BoardWidth; cx++ {
+		var line []Point
+		for cy := 0; cy < BoardHeight; cy++ {
+			line = append(line, Point{cx, cy})
+		}
+		lines = append(lines, line)
+	}
+	return lines
+}
+
+func RightDownLines() [][]Point {
+	rightDownLine := func(x, y int) []Point {
+		var line []Point
+		for i := 0; ; i++ {
+			cx, cy := i, y+i
+			if cx >= BoardWidth || cy >= BoardHeight {
 				break
 			}
+			line = append(line, Point{cx, cy})
 		}
-		return n
+		return line
 	}
-	for cx := 0; cx < BoardWidth; cx++ {
-		for cy := 0; cy < BoardHeight; {
-			down := consequentDown(cx, cy)
-			if down >= 3 {
-				for d := 0; d < down; d++ {
-					if c, ok := b.At(cx, cy+d); ok && *c != nil {
+	var lines [][]Point
+	for y := 0; y < BoardHeight; y++ {
+		lines = append(lines, rightDownLine(0, y))
+	}
+	for x := 1; x < BoardWidth; x++ {
+		lines = append(lines, rightDownLine(x, 0))
+	}
+	return lines
+}
+
+func RightUpLines() [][]Point {
+	rightUpLine := func(x, y int) []Point {
+		var line []Point
+		for i := 0; ; i++ {
+			cx, cy := i, y-i
+			if cx >= BoardWidth || cy >= BoardHeight {
+				break
+			}
+			line = append(line, Point{cx, cy})
+		}
+		return line
+	}
+	var lines [][]Point
+	for y := 0; y < BoardHeight; y++ {
+		lines = append(lines, rightUpLine(0, y))
+	}
+	for x := 1; x < BoardWidth; x++ {
+		lines = append(lines, rightUpLine(x, BoardHeight-1))
+	}
+	return lines
+}
+
+func (b *Board) MarkErase() {
+	var lines [][]Point
+
+	lines = append(lines, HorizontalLines()...)
+	lines = append(lines, VerticalLines()...)
+	lines = append(lines, RightDownLines()...)
+	lines = append(lines, RightUpLines()...)
+
+	log.Println(lines)
+
+	for _, line := range lines {
+		conseq := 0
+		for i := 1; i <= len(line); i++ {
+			p := line[conseq]
+			if i < len(line) {
+				p2 := line[i]
+				if c, ok := b.At(p.x, p.y); ok && *c != nil {
+					if c2, ok := b.At(p2.x, p2.y); ok && *c2 != nil {
+						if (*c).Color == (*c2).Color && (*c).Color != Wall {
+							continue
+						}
+					}
+				}
+			}
+			n := i - conseq
+			if n > 1 {
+				log.Println(n)
+			}
+			if n >= 3 {
+				for _, cp := range line[conseq:i] {
+					if c, ok := b.At(cp.x, cp.y); ok && *c != nil {
 						(*c).Erased = true
 					}
 				}
 			}
-			cy += down
+			conseq = i
 		}
 	}
-
 }
 
 func (b *Board) Erase() {
