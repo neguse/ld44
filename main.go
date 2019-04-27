@@ -125,6 +125,8 @@ func (g *Game) Update() {
 		if !g.Board.FallStone() {
 			g.InitPick()
 			g.Step = Move
+		} else {
+			g.Step = Erase
 		}
 	}
 }
