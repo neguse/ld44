@@ -3,6 +3,7 @@ package main
 import (
 	"image"
 	"log"
+	"math/rand"
 
 	"github.com/hajimehoshi/ebiten"
 	"github.com/hajimehoshi/ebiten/ebitenutil"
@@ -11,6 +12,11 @@ import (
 	_ "github.com/neguse/ld44/statik"
 	"github.com/rakyll/statik/fs"
 )
+
+type Stone struct {
+	Color  Color
+	Erased bool
+}
 
 type Color int
 
@@ -47,7 +53,7 @@ const (
 	ScreenHeight = 320
 
 	BoardWidth  = 8
-	BoardHeight = 8
+	BoardHeight = 12
 
 	StoneWidth  = 16
 	StoneHeight = 16
@@ -59,9 +65,28 @@ var G *Game
 
 type Game struct {
 	Board        *Board
-	Pick         []Color
+	Pick         []*Stone
 	PickX, PickY int
 	Step         Step
+}
+
+func (g *Game) NewColoredStone() *Stone {
+	r := rand.Intn(4)
+	return &Stone{
+		Color: []Color{Red, Blue, Green, Yellow}[r],
+	}
+}
+
+func NewWall() *Stone {
+	return &Stone{
+		Color: Wall,
+	}
+}
+
+func (g *Game) InitPick() {
+	g.PickX = 3
+	g.PickY = 1
+	g.Pick = []*Stone{G.NewColoredStone(), G.NewColoredStone()}
 }
 
 func (g *Game) Update() {
@@ -78,7 +103,7 @@ func (g *Game) Update() {
 			}
 		}
 		if inpututil.IsKeyJustPressed(ebiten.KeyK) {
-			g.Pick = append(g.Pick, Red)
+			g.Pick = append(g.Pick, g.NewColoredStone())
 		}
 		if inpututil.IsKeyJustPressed(ebiten.KeyJ) {
 			g.Step = FallPick
@@ -95,17 +120,15 @@ func (g *Game) Update() {
 	case Erase:
 		g.Step = FallStone
 	case FallStone:
-		g.Pick = []Color{Red, Red}
-		g.PickX = 3
-		g.PickY = -1
+		g.InitPick()
 		g.Step = Move
 	}
 }
 
 func (g *Game) IsPickCollide(px, py int) bool {
 	for i, _ := range g.Pick {
-		if a, ok := g.Board.At(px, py+i); ok {
-			if *a != None {
+		if a, ok := g.Board.At(px, py-i); ok {
+			if *a != nil && (*a).Color != None {
 				return true
 			}
 		}
@@ -115,13 +138,18 @@ func (g *Game) IsPickCollide(px, py int) bool {
 
 func (g *Game) FixPick() {
 	for i, p := range g.Pick {
-		if a, ok := g.Board.At(g.PickX, g.PickY+i); ok {
-			if *a == None {
+		log.Println(i, g.PickX, g.PickY-i, p.Color)
+		if a, ok := g.Board.At(g.PickX, g.PickY-i); ok {
+			if *a == nil || (*a).Color == None {
 				*a = p
+			} else {
+				log.Panic("cell must nil", g.PickX, g.PickY-i, *a)
 			}
+		} else {
+			log.Panic("fix failed", g.PickX, g.PickY-i)
 		}
 	}
-	g.Pick = []Color{}
+	g.Pick = []*Stone{}
 
 }
 
@@ -136,24 +164,24 @@ func (g *Game) Render(r *ebiten.Image) {
 }
 
 type Board struct {
-	Cell [BoardWidth][BoardHeight]Color
+	Cell [BoardWidth][BoardHeight]*Stone
 }
 
 func (b *Board) Initialize() {
 	// Bottom
 	for cx := 0; cx < BoardWidth; cx++ {
 		if a, ok := b.At(cx, BoardHeight-1); ok {
-			*a = Wall
+			*a = NewWall()
 		}
 	}
-	for cy := 0; cy < BoardWidth; cy++ {
+	for cy := 0; cy < BoardHeight; cy++ {
 		// left
 		if a, ok := b.At(0, cy); ok {
-			*a = Wall
+			*a = NewWall()
 		}
 		// right
 		if a, ok := b.At(BoardWidth-1, cy); ok {
-			*a = Wall
+			*a = NewWall()
 		}
 	}
 }
@@ -162,7 +190,7 @@ func (b *Board) MarkErase() {
 
 }
 
-func (b *Board) At(cx, cy int) (*Color, bool) {
+func (b *Board) At(cx, cy int) (**Stone, bool) {
 	if 0 <= cx && cx < BoardWidth {
 		if 0 <= cy && cy < BoardHeight {
 			return &b.Cell[cx][cy], true
@@ -171,12 +199,15 @@ func (b *Board) At(cx, cy int) (*Color, bool) {
 	return nil, false
 }
 
-func (b *Board) RenderStone(r *ebiten.Image, ox, oy int, cx, cy int, c Color) {
+func (b *Board) RenderStone(r *ebiten.Image, ox, oy int, cx, cy int, s *Stone) {
+	if s == nil {
+		log.Panic("s must not nil")
+	}
 	opt := &ebiten.DrawImageOptions{}
 	opt.GeoM.Translate(float64(ox), float64(oy))
 	opt.GeoM.Translate(float64(cx*StoneWidth), float64(cy*StoneHeight))
 
-	if image, ok := StoneImages[c]; ok {
+	if image, ok := StoneImages[s.Color]; ok {
 		err := r.DrawImage(image, opt)
 		if err != nil {
 			log.Panic(err)
@@ -197,7 +228,7 @@ func (b *Board) Render(r *ebiten.Image, ox, oy int) {
 				log.Panic(err)
 			}
 			// Stone
-			if c, ok := b.At(cx, cy); ok {
+			if c, ok := b.At(cx, cy); ok && *c != nil {
 				b.RenderStone(r, ox, oy, cx, cy, *c)
 			}
 		}
@@ -242,9 +273,7 @@ func init() {
 		Board: &Board{},
 	}
 	G.Board.Initialize()
-	G.PickX = 3
-	G.PickY = -1
-	G.Pick = []Color{Red, Red}
+	G.InitPick()
 	G.Step = Move
 }
 
