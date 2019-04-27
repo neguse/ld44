@@ -57,17 +57,63 @@ const (
 
 	StoneWidth  = 16
 	StoneHeight = 16
+
+	PickMin    = 2
+	PickMax    = 10
+	ReserveNum = PickMax
 )
 
 var Texture *ebiten.Image
 var StoneImages map[Color]*ebiten.Image
 var G *Game
 
+type StoneGenerator struct {
+}
+
+func (g *StoneGenerator) Next() *Stone {
+	// TODO correct rate
+	r := rand.Intn(4)
+	return &Stone{
+		Color: []Color{Red, Blue, Green, Yellow}[r],
+	}
+}
+
 type Game struct {
 	Board        *Board
+	Gen          *StoneGenerator
+	Next         []*Stone
 	Pick         []*Stone
 	PickX, PickY int
 	Step         Step
+}
+
+func (g *Game) ReserveNext() {
+	n := ReserveNum - len(g.Next)
+	for n > 0 {
+		g.Next = append(g.Next, g.Gen.Next())
+		n--
+	}
+}
+
+func (g *Game) RestorePick() {
+	g.Next = append(g.Pick, g.Next...)
+	g.Pick = nil
+}
+
+func (g *Game) PickNext() {
+	var n int
+	if len(g.Pick) < PickMin || PickMax <= len(g.Pick) {
+		g.RestorePick()
+		n = PickMin
+	} else {
+		n = 1
+	}
+	for n > 0 {
+		var next *Stone
+		next, g.Next = g.Next[0], g.Next[1:]
+		g.Pick = append(g.Pick, next)
+		n--
+	}
 }
 
 func (g *Game) NewColoredStone() *Stone {
@@ -84,9 +130,11 @@ func NewWall() *Stone {
 }
 
 func (g *Game) InitPick() {
+	g.ReserveNext()
 	g.PickX = 3
 	g.PickY = 1
-	g.Pick = []*Stone{G.NewColoredStone(), G.NewColoredStone()}
+	g.Pick = []*Stone{}
+	g.PickNext()
 }
 
 func (g *Game) Update() {
@@ -103,7 +151,7 @@ func (g *Game) Update() {
 			}
 		}
 		if inpututil.IsKeyJustPressed(ebiten.KeyK) {
-			g.Pick = append(g.Pick, g.NewColoredStone())
+			g.PickNext()
 		}
 		if inpututil.IsKeyJustPressed(ebiten.KeyJ) {
 			g.Step = FallPick
@@ -164,6 +212,9 @@ func (g *Game) Render(r *ebiten.Image) {
 	g.Board.Render(r, ox, oy)
 	for i, p := range g.Pick {
 		g.Board.RenderStone(r, ox, oy, g.PickX, g.PickY-i, p)
+	}
+	for i, p := range g.Next {
+		g.Board.RenderStone(r, ox, oy, BoardWidth+1, -i, p)
 	}
 }
 
@@ -352,7 +403,7 @@ func init() {
 		image := Texture.SubImage(
 			image.Rectangle{
 				image.Point{StoneWidth * int(c), 0},
-				image.Point{StoneWidth*(int(c)+1) - 1, StoneHeight}})
+				image.Point{StoneWidth * (int(c) + 1), StoneHeight}})
 		return image.(*ebiten.Image)
 	}
 	for _, c := range Colors {
