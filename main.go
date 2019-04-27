@@ -118,10 +118,14 @@ func (g *Game) Update() {
 		g.FixPick()
 		g.Step = Erase
 	case Erase:
+		g.Board.MarkErase()
+		g.Board.Erase()
 		g.Step = FallStone
 	case FallStone:
-		g.InitPick()
-		g.Step = Move
+		if !g.Board.FallStone() {
+			g.InitPick()
+			g.Step = Move
+		}
 	}
 }
 
@@ -150,7 +154,6 @@ func (g *Game) FixPick() {
 		}
 	}
 	g.Pick = []*Stone{}
-
 }
 
 func (g *Game) Render(r *ebiten.Image) {
@@ -187,7 +190,63 @@ func (b *Board) Initialize() {
 }
 
 func (b *Board) MarkErase() {
+	// horizontal
+	consequentRight := func(cx, cy int) int {
+		n := 1
+		if c, ok := b.At(cx, cy); ok && *c != nil {
+			for x := 1; cx+x < BoardWidth; x++ {
+				if c2, ok := b.At(cx+x, cy); ok && *c2 != nil {
+					if (*c).Color == (*c2).Color && (*c).Color != Wall {
+						n++
+						continue
+					}
+				}
+				break
+			}
+		}
+		return n
+	}
+	for cy := 0; cy < BoardHeight; cy++ {
+		for cx := 0; cx < BoardWidth; {
+			right := consequentRight(cx, cy)
+			if right >= 3 {
+				for r := 0; r < right; r++ {
+					if c, ok := b.At(cx+r, cy); ok && *c != nil {
+						log.Println("mark as erased", cx+r, cy)
+						(*c).Erased = true
+					}
+				}
+			}
+			cx += right
+		}
+	}
+}
 
+func (b *Board) Erase() {
+	for cy := 0; cy < BoardHeight; cy++ {
+		for cx := 0; cx < BoardWidth; cx++ {
+			if c, ok := b.At(cx, cy); ok && (*c) != nil && (*c).Erased {
+				*c = nil
+			}
+		}
+	}
+}
+
+func (b *Board) FallStone() bool {
+	falled := false
+	for cx := 0; cx < BoardWidth; cx++ {
+		for cy := BoardHeight - 1; cy >= 0; cy-- {
+			if c, ok := b.At(cx, cy); ok {
+				if c2, ok := b.At(cx, cy-1); ok {
+					if (*c) == nil && (*c2) != nil {
+						*c, *c2 = *c2, *c
+						falled = true
+					}
+				}
+			}
+		}
+	}
+	return falled
 }
 
 func (b *Board) At(cx, cy int) (**Stone, bool) {
