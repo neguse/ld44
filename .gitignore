@@ -1,3 +1,5 @@
 wasm_exec.js
 main.wasm
 main.js
+main.exe
+main.js.map

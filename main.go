@@ -50,11 +50,11 @@ const (
 )
 
 const (
-	ScreenWidth  = 240
-	ScreenHeight = 320
+	ScreenWidth  = 200
+	ScreenHeight = 300
 
 	BoardWidth  = 8
-	BoardHeight = 18
+	BoardHeight = 16
 
 	StoneWidth  = 16
 	StoneHeight = 16
@@ -87,6 +87,44 @@ type Game struct {
 	Step                  Step
 	Wait                  int
 	PrevTouchID           int
+	MouseEnabled          bool
+	DebugString           string
+
+	FirstTouchID        int
+	FirstTouchPoint     Point
+	FirstTouchLastPoint Point
+	FirstTouchCursored  bool
+}
+
+func (g *Game) UpdateTouch() {
+	for _, tid := range ebiten.TouchIDs() {
+		if g.FirstTouchID == 0 {
+			g.FirstTouchID = tid
+			x, y := ebiten.TouchPosition(tid)
+			g.FirstTouchPoint = Point{x, y}
+			cx, cy := g.Board.PosToCell(x, y)
+			g.FirstTouchCursored = cx == g.PickX && cy == (g.PickY-g.PickLen)+1
+		}
+		if tid == g.FirstTouchID {
+			x, y := ebiten.TouchPosition(tid)
+			cx, cy := g.Board.PosToCell(x, y)
+			g.PickX = clampInt(cx, 1, BoardWidth-2)
+			g.PickLen = clampInt((g.PickY-cy)+1, 1, PickMax)
+			g.FirstTouchLastPoint = Point{x, y}
+		}
+	}
+	if inpututil.IsTouchJustReleased(g.FirstTouchID) {
+		g.FirstTouchID = 0
+		x, y := g.FirstTouchLastPoint.x, g.FirstTouchLastPoint.y
+		pcx, pcy := g.Board.PosToCell(g.FirstTouchPoint.x, g.FirstTouchPoint.y)
+		cx, cy := g.Board.PosToCell(x, y)
+		cursored := cx == g.PickX && cy == (g.PickY-g.PickLen)+1
+		if cursored && g.FirstTouchCursored && pcx == cx && pcy == cy {
+			g.FixPick()
+			g.PickLen = 1
+			g.Step = FallStone
+		}
+	}
 }
 
 func (g *Game) ReservePick() {
@@ -127,35 +165,27 @@ func clampInt(v, min, max int) int {
 }
 
 func (g *Game) Update() {
+	// enable mouse when input
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+		g.MouseEnabled = true
+	}
 	switch g.Step {
 	case Move:
-		/*
-			// move by mouse cursor
-			{
-				x, y := ebiten.CursorPosition()
-				cx, cy := g.Board.PosToCell(x, y)
-				g.PickX = clampInt(cx, 1, BoardWidth-2)
-				g.PickLen = clampInt((g.PickY-cy)+1, 1, PickMax)
-			}
+
+		// move by mouse cursor
+		if g.MouseEnabled {
+			x, y := ebiten.CursorPosition()
+			cx, cy := g.Board.PosToCell(x, y)
+			g.PickX = clampInt(cx, 1, BoardWidth-2)
+			g.PickLen = clampInt((g.PickY-cy)+1, 1, PickMax)
 			if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 				g.FixPick()
 				g.PickLen = 1
 				g.Step = FallStone
 			}
-		*/
-		for tid := range ebiten.TouchIDs() {
-			x, y := ebiten.TouchPosition(tid)
-			cx, cy := g.Board.PosToCell(x, y)
-			g.PickX = clampInt(cx, 1, BoardWidth-2)
-			g.PickLen = clampInt((g.PickY-cy)+1, 1, PickMax)
-			g.PrevTouchID = tid
 		}
-		if inpututil.IsTouchJustReleased(g.PrevTouchID) {
-			g.FixPick()
-			g.PickLen = 1
-			g.Step = FallStone
-			g.PrevTouchID = -1
-		}
+
+		g.UpdateTouch()
 
 		/*
 			if inpututil.IsKeyJustPressed(ebiten.KeyH) {
@@ -233,7 +263,8 @@ func (g *Game) FixPick() {
 }
 
 func (g *Game) Render(r *ebiten.Image) {
-	ebitenutil.DebugPrint(r, "click to cut and match three!")
+	ebitenutil.DebugPrint(r, "click to cut and match three!"+"\n"+g.DebugString)
+	g.DebugString = ""
 	g.Board.Render(r)
 	for i, p := range g.Pick {
 		cx, cy := g.PickX, g.PickY-i
@@ -513,7 +544,8 @@ func init() {
 	}
 
 	G = &Game{
-		Board: &Board{},
+		Board:        &Board{},
+		MouseEnabled: false,
 	}
 	G.Board.Initialize()
 	G.InitPick()
@@ -531,7 +563,7 @@ func update(screen *ebiten.Image) error {
 
 func main() {
 	ebiten.SetMaxTPS(30)
-	if err := ebiten.Run(update, ScreenWidth, ScreenHeight, 1, "Hello, World!"); err != nil {
+	if err := ebiten.Run(update, ScreenWidth, ScreenHeight, 2, "Hello, World!"); err != nil {
 		log.Fatal(err)
 	}
 }
