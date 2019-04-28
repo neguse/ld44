@@ -5,9 +5,10 @@ import (
 	"log"
 	"math/rand"
 
+	"github.com/hajimehoshi/ebiten/inpututil"
+
 	"github.com/hajimehoshi/ebiten"
 	"github.com/hajimehoshi/ebiten/ebitenutil"
-	"github.com/hajimehoshi/ebiten/inpututil"
 
 	_ "github.com/neguse/ld44/statik"
 	"github.com/rakyll/statik/fs"
@@ -115,34 +116,57 @@ func (g *Game) InitPick() {
 	g.PickLen = 1
 }
 
+func clampInt(v, min, max int) int {
+	if v < min {
+		return min
+	} else if v > max {
+		return max
+	}
+	return v
+}
+
 func (g *Game) Update() {
 	switch g.Step {
 	case Move:
-		if inpututil.IsKeyJustPressed(ebiten.KeyH) {
-			if 1 < g.PickX {
-				g.PickX--
-			}
+		// move by mouse cursor
+		{
+			x, y := ebiten.CursorPosition()
+			cx, cy := g.Board.PosToCell(x, y)
+			g.PickX = clampInt(cx, 1, BoardWidth-2)
+			g.PickLen = clampInt((g.PickY-cy)+1, 1, PickMax)
 		}
-		if inpututil.IsKeyJustPressed(ebiten.KeyL) {
-			if g.PickX < BoardWidth-2 {
-				g.PickX++
-			}
-		}
-		if inpututil.IsKeyJustPressed(ebiten.KeyK) {
-			if g.PickLen < PickMax-1 {
-				g.PickLen++
-			}
-		}
-		if inpututil.IsKeyJustPressed(ebiten.KeyJ) {
-			if g.PickLen > 1 {
-				g.PickLen--
-			}
-		}
-		if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
+		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 			g.FixPick()
 			g.PickLen = 1
 			g.Step = FallStone
 		}
+		/*
+			if inpututil.IsKeyJustPressed(ebiten.KeyH) {
+				if 1 < g.PickX {
+					g.PickX--
+				}
+			}
+			if inpututil.IsKeyJustPressed(ebiten.KeyL) {
+				if g.PickX < BoardWidth-2 {
+					g.PickX++
+				}
+			}
+			if inpututil.IsKeyJustPressed(ebiten.KeyK) {
+				if g.PickLen < PickMax-1 {
+					g.PickLen++
+				}
+			}
+			if inpututil.IsKeyJustPressed(ebiten.KeyJ) {
+				if g.PickLen > 1 {
+					g.PickLen--
+				}
+			}
+			if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
+				g.FixPick()
+				g.PickLen = 1
+				g.Step = FallStone
+			}
+		*/
 	case WaitErase:
 		g.Wait--
 		if g.Wait <= 0 {
@@ -193,21 +217,20 @@ func (g *Game) FixPick() {
 
 func (g *Game) Render(r *ebiten.Image) {
 	ebitenutil.DebugPrint(r, "push HJKL key and match three!")
-	ox := 10
-	oy := ScreenHeight - StoneHeight*BoardHeight
-	g.Board.Render(r, ox, oy)
+	g.Board.Render(r)
 	for i, p := range g.Pick {
 		cx, cy := g.PickX, g.PickY-i
-		g.Board.RenderStone(r, ox, oy, cx, cy, p)
+		g.Board.RenderStone(r, cx, cy, p)
 		if i+1 == g.PickLen {
-			g.Board.RenderCursor(r, ox, oy, cx, cy)
+			g.Board.RenderCursor(r, cx, cy)
 		}
 
 	}
 }
 
 type Board struct {
-	Cell [BoardWidth][BoardHeight]*Stone
+	Cell             [BoardWidth][BoardHeight]*Stone
+	OriginX, OriginY int
 }
 
 func (b *Board) Initialize() {
@@ -227,6 +250,9 @@ func (b *Board) Initialize() {
 			*a = NewWall()
 		}
 	}
+
+	b.OriginX = 10
+	b.OriginY = ScreenHeight - StoneHeight*BoardHeight
 }
 
 type Point struct {
@@ -378,7 +404,7 @@ func (b *Board) At(cx, cy int) (**Stone, bool) {
 	return nil, false
 }
 
-func (b *Board) RenderStone(r *ebiten.Image, ox, oy int, cx, cy int, s *Stone) {
+func (b *Board) RenderStone(r *ebiten.Image, cx, cy int, s *Stone) {
 	if s == nil {
 		log.Panic("s must not nil")
 	}
@@ -388,7 +414,7 @@ func (b *Board) RenderStone(r *ebiten.Image, ox, oy int, cx, cy int, s *Stone) {
 		s := float64(G.Wait) / 3.0
 		opt.GeoM.Scale(s, s)
 	}
-	opt.GeoM.Translate(float64(ox), float64(oy))
+	opt.GeoM.Translate(float64(b.OriginX), float64(b.OriginY))
 	opt.GeoM.Translate(float64(cx*StoneWidth), float64(cy*StoneHeight))
 
 	if image, ok := StoneImages[s.Color]; ok {
@@ -399,9 +425,13 @@ func (b *Board) RenderStone(r *ebiten.Image, ox, oy int, cx, cy int, s *Stone) {
 	}
 }
 
-func (b *Board) RenderCursor(r *ebiten.Image, ox, oy int, cx, cy int) {
+func (b *Board) PosToCell(x, y int) (cx, cy int) {
+	return (x - b.OriginX) / StoneWidth, (y - b.OriginY) / StoneHeight
+}
+
+func (b *Board) RenderCursor(r *ebiten.Image, cx, cy int) {
 	opt := &ebiten.DrawImageOptions{}
-	opt.GeoM.Translate(float64(ox), float64(oy))
+	opt.GeoM.Translate(float64(b.OriginX), float64(b.OriginY))
 	opt.GeoM.Translate(float64(cx*StoneWidth), float64(cy*StoneHeight))
 
 	if image, ok := StoneImages[Cursor]; ok {
@@ -412,11 +442,11 @@ func (b *Board) RenderCursor(r *ebiten.Image, ox, oy int, cx, cy int) {
 	}
 }
 
-func (b *Board) Render(r *ebiten.Image, ox, oy int) {
+func (b *Board) Render(r *ebiten.Image) {
 	for cx := 0; cx < BoardWidth; cx++ {
 		for cy := 0; cy < BoardHeight; cy++ {
 			opt := &ebiten.DrawImageOptions{}
-			opt.GeoM.Translate(float64(ox), float64(oy))
+			opt.GeoM.Translate(float64(b.OriginX), float64(b.OriginY))
 			opt.GeoM.Translate(float64(cx*StoneWidth), float64(cy*StoneHeight))
 			// bg
 			err := r.DrawImage(StoneImages[None], opt)
@@ -425,7 +455,7 @@ func (b *Board) Render(r *ebiten.Image, ox, oy int) {
 			}
 			// Stone
 			if c, ok := b.At(cx, cy); ok && *c != nil {
-				b.RenderStone(r, ox, oy, cx, cy, *c)
+				b.RenderStone(r, cx, cy, *c)
 			}
 		}
 	}
