@@ -27,7 +27,18 @@ const (
 	Green
 	Yellow
 	Wall
+	Erasing
 )
+
+var Colors []Color = []Color{
+	None,
+	Red,
+	Blue,
+	Green,
+	Yellow,
+	Wall,
+	Erasing,
+}
 
 type Step int
 
@@ -38,15 +49,6 @@ const (
 	Erase
 	FallStone
 )
-
-var Colors []Color = []Color{
-	None,
-	Red,
-	Blue,
-	Green,
-	Yellow,
-	Wall,
-}
 
 const (
 	ScreenWidth  = 240
@@ -85,6 +87,7 @@ type Game struct {
 	Pick         []*Stone
 	PickX, PickY int
 	Step         Step
+	Wait         int
 }
 
 func (g *Game) ReserveNext() {
@@ -165,16 +168,28 @@ func (g *Game) Update() {
 	case FixPick:
 		g.FixPick()
 		g.Step = Erase
+		if g.Board.MarkErase() {
+			g.Wait = 10
+		} else {
+			g.Wait = 1
+		}
 	case Erase:
-		g.Board.MarkErase()
-		g.Board.Erase()
-		g.Step = FallStone
+		g.Wait--
+		if g.Wait <= 0 {
+			g.Board.Erase()
+			g.Step = FallStone
+		}
 	case FallStone:
 		if !g.Board.FallStone() {
 			g.InitPick()
 			g.Step = Move
 		} else {
 			g.Step = Erase
+			if g.Board.MarkErase() {
+				g.Wait = 10
+			} else {
+				g.Wait = 1
+			}
 		}
 	}
 }
@@ -313,7 +328,8 @@ func RightUpLines() [][]Point {
 	return lines
 }
 
-func (b *Board) MarkErase() {
+func (b *Board) MarkErase() bool {
+	erased := false
 	var lines [][]Point
 
 	lines = append(lines, HorizontalLines()...)
@@ -340,12 +356,14 @@ func (b *Board) MarkErase() {
 				for _, cp := range line[conseq:i] {
 					if c, ok := b.At(cp.x, cp.y); ok && *c != nil {
 						(*c).Erased = true
+						erased = true
 					}
 				}
 			}
 			conseq = i
 		}
 	}
+	return erased
 }
 
 func (b *Board) Erase() {
@@ -389,6 +407,11 @@ func (b *Board) RenderStone(r *ebiten.Image, ox, oy int, cx, cy int, s *Stone) {
 		log.Panic("s must not nil")
 	}
 	opt := &ebiten.DrawImageOptions{}
+	// sugoi nazo no erasing animation
+	if s.Erased {
+		s := float64(G.Wait) / 3.0
+		opt.GeoM.Scale(s, s)
+	}
 	opt.GeoM.Translate(float64(ox), float64(oy))
 	opt.GeoM.Translate(float64(cx*StoneWidth), float64(cy*StoneHeight))
 
@@ -472,6 +495,7 @@ func update(screen *ebiten.Image) error {
 }
 
 func main() {
+	ebiten.SetMaxTPS(30)
 	if err := ebiten.Run(update, ScreenWidth, ScreenHeight, 2, "Hello, World!"); err != nil {
 		log.Fatal(err)
 	}
