@@ -140,6 +140,17 @@ func (g *Game) Update() {
 			g.PickLen = 1
 			g.Step = FallStone
 		}
+		for tid := range ebiten.TouchIDs() {
+			x, y := ebiten.TouchPosition(tid)
+			cx, cy := g.Board.PosToCell(x, y)
+			g.PickX = clampInt(cx, 1, BoardWidth-2)
+			g.PickLen = clampInt((g.PickY-cy)+1, 1, PickMax)
+			if inpututil.IsTouchJustReleased(tid) {
+				g.FixPick()
+				g.PickLen = 1
+				g.Step = FallStone
+			}
+		}
 		/*
 			if inpututil.IsKeyJustPressed(ebiten.KeyH) {
 				if 1 < g.PickX {
@@ -514,7 +525,7 @@ func update(screen *ebiten.Image) error {
 
 func main() {
 	ebiten.SetMaxTPS(30)
-	if err := ebiten.Run(update, ScreenWidth, ScreenHeight, 3, "Hello, World!"); err != nil {
+	if err := ebiten.Run(update, ScreenWidth, ScreenHeight, 1, "Hello, World!"); err != nil {
 		log.Fatal(err)
 	}
 }
