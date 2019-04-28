@@ -216,7 +216,7 @@ func (g *Game) FixPick() {
 }
 
 func (g *Game) Render(r *ebiten.Image) {
-	ebitenutil.DebugPrint(r, "push HJKL key and match three!")
+	ebitenutil.DebugPrint(r, "click to cut and match three!")
 	g.Board.Render(r)
 	for i, p := range g.Pick {
 		cx, cy := g.PickX, g.PickY-i
