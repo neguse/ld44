@@ -2,67 +2,6 @@ package main
 
 import "testing"
 
-func TestGameRestorePick(t *testing.T) {
-	s1 := &Stone{}
-	s2 := &Stone{}
-	s3 := &Stone{}
-
-	type Case struct {
-		t        string
-		prevNext []*Stone
-		prevPick []*Stone
-		wantNext []*Stone
-		wantPick []*Stone
-	}
-	cases := []Case{
-		Case{
-			t:        "as it is",
-			prevNext: []*Stone{s1, s2, s3},
-			prevPick: []*Stone{},
-			wantNext: []*Stone{s1, s2, s3},
-			wantPick: []*Stone{},
-		},
-		Case{
-			t:        "restore picked as it is",
-			prevNext: []*Stone{},
-			prevPick: []*Stone{s1, s2, s3},
-			wantNext: []*Stone{s1, s2, s3},
-			wantPick: []*Stone{},
-		},
-		Case{
-			t:        "restore in order of pick, next",
-			prevNext: []*Stone{s2, s3},
-			prevPick: []*Stone{s1},
-			wantNext: []*Stone{s1, s2, s3},
-			wantPick: []*Stone{},
-		},
-	}
-
-	for _, cs := range cases {
-		g := &Game{}
-		g.Pick = cs.prevPick
-		g.Next = cs.prevNext
-		g.RestorePick()
-		if len(g.Pick) != len(cs.wantPick) {
-			t.Fatal(cs.t, "pick item num mismatch")
-		}
-		if len(g.Next) != len(cs.wantNext) {
-			t.Fatal(cs.t, "next item num mismatch")
-		}
-
-		for n := 0; n < len(g.Pick); n++ {
-			if g.Pick[n] != cs.wantPick[n] {
-				t.Error(cs.t, "pick item mismatch", n, &g.Pick[n], &cs.wantPick[n])
-			}
-		}
-		for n := 0; n < len(g.Next); n++ {
-			if g.Next[n] != cs.wantNext[n] {
-				t.Error(cs.t, "next item mismatch", n, &g.Next[n], &cs.wantNext[n])
-			}
-		}
-	}
-}
-
 func TestBoardMarkErase(t *testing.T) {
 	type C struct {
 		x, y int

@@ -44,10 +44,8 @@ type Step int
 
 const (
 	Move Step = iota
-	FallPick
-	FixPick
-	Erase
 	FallStone
+	WaitErase
 )
 
 const (
@@ -55,7 +53,7 @@ const (
 	ScreenHeight = 320
 
 	BoardWidth  = 8
-	BoardHeight = 12
+	BoardHeight = 22
 
 	StoneWidth  = 16
 	StoneHeight = 16
@@ -135,7 +133,7 @@ func NewWall() *Stone {
 func (g *Game) InitPick() {
 	g.ReserveNext()
 	g.PickX = 3
-	g.PickY = 1
+	g.PickY = PickMax
 	g.Pick = []*Stone{}
 	g.PickNext()
 }
@@ -157,39 +155,27 @@ func (g *Game) Update() {
 			g.PickNext()
 		}
 		if inpututil.IsKeyJustPressed(ebiten.KeyJ) {
-			g.Step = FallPick
+			g.FixPick()
+			g.Step = FallStone
 		}
-	case FallPick:
-		if !g.IsPickCollide(g.PickX, g.PickY+1) {
-			g.PickY++
-		} else {
-			g.Step = FixPick
-		}
-	case FixPick:
-		g.FixPick()
-		g.Step = Erase
-		if g.Board.MarkErase() {
-			g.Wait = 10
-		} else {
-			g.Wait = 1
-		}
-	case Erase:
+	case WaitErase:
 		g.Wait--
 		if g.Wait <= 0 {
-			g.Board.Erase()
-			g.Step = FallStone
+			if g.Board.Erase() {
+				g.Step = FallStone
+			} else {
+				g.InitPick()
+				g.Step = Move
+			}
 		}
 	case FallStone:
 		if !g.Board.FallStone() {
-			g.InitPick()
-			g.Step = Move
-		} else {
-			g.Step = Erase
 			if g.Board.MarkErase() {
 				g.Wait = 10
 			} else {
 				g.Wait = 1
 			}
+			g.Step = WaitErase
 		}
 	}
 }
@@ -366,14 +352,17 @@ func (b *Board) MarkErase() bool {
 	return erased
 }
 
-func (b *Board) Erase() {
+func (b *Board) Erase() bool {
+	erased := false
 	for cy := 0; cy < BoardHeight; cy++ {
 		for cx := 0; cx < BoardWidth; cx++ {
 			if c, ok := b.At(cx, cy); ok && (*c) != nil && (*c).Erased {
 				*c = nil
+				erased = true
 			}
 		}
 	}
+	return erased
 }
 
 func (b *Board) FallStone() bool {
@@ -421,7 +410,6 @@ func (b *Board) RenderStone(r *ebiten.Image, ox, oy int, cx, cy int, s *Stone) {
 			log.Panic(err)
 		}
 	}
-
 }
 
 func (b *Board) Render(r *ebiten.Image, ox, oy int) {
