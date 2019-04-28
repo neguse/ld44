@@ -51,16 +51,16 @@ const (
 
 const (
 	ScreenWidth  = 240
-	ScreenHeight = 400
+	ScreenHeight = 320
 
 	BoardWidth  = 8
-	BoardHeight = 22
+	BoardHeight = 18
 
 	StoneWidth  = 16
 	StoneHeight = 16
 
 	PickMin    = 2
-	PickMax    = 10
+	PickMax    = 6
 	ReserveNum = PickMax
 )
 
@@ -514,7 +514,7 @@ func update(screen *ebiten.Image) error {
 
 func main() {
 	ebiten.SetMaxTPS(30)
-	if err := ebiten.Run(update, ScreenWidth, ScreenHeight, 2, "Hello, World!"); err != nil {
+	if err := ebiten.Run(update, ScreenWidth, ScreenHeight, 3, "Hello, World!"); err != nil {
 		log.Fatal(err)
 	}
 }
