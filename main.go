@@ -86,6 +86,7 @@ type Game struct {
 	PickX, PickY, PickLen int
 	Step                  Step
 	Wait                  int
+	PrevTouchID           int
 }
 
 func (g *Game) ReservePick() {
@@ -128,29 +129,34 @@ func clampInt(v, min, max int) int {
 func (g *Game) Update() {
 	switch g.Step {
 	case Move:
-		// move by mouse cursor
-		{
-			x, y := ebiten.CursorPosition()
-			cx, cy := g.Board.PosToCell(x, y)
-			g.PickX = clampInt(cx, 1, BoardWidth-2)
-			g.PickLen = clampInt((g.PickY-cy)+1, 1, PickMax)
-		}
-		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-			g.FixPick()
-			g.PickLen = 1
-			g.Step = FallStone
-		}
+		/*
+			// move by mouse cursor
+			{
+				x, y := ebiten.CursorPosition()
+				cx, cy := g.Board.PosToCell(x, y)
+				g.PickX = clampInt(cx, 1, BoardWidth-2)
+				g.PickLen = clampInt((g.PickY-cy)+1, 1, PickMax)
+			}
+			if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+				g.FixPick()
+				g.PickLen = 1
+				g.Step = FallStone
+			}
+		*/
 		for tid := range ebiten.TouchIDs() {
 			x, y := ebiten.TouchPosition(tid)
 			cx, cy := g.Board.PosToCell(x, y)
 			g.PickX = clampInt(cx, 1, BoardWidth-2)
 			g.PickLen = clampInt((g.PickY-cy)+1, 1, PickMax)
-			if inpututil.IsTouchJustReleased(tid) {
-				g.FixPick()
-				g.PickLen = 1
-				g.Step = FallStone
-			}
+			g.PrevTouchID = tid
 		}
+		if inpututil.IsTouchJustReleased(g.PrevTouchID) {
+			g.FixPick()
+			g.PickLen = 1
+			g.Step = FallStone
+			g.PrevTouchID = -1
+		}
+
 		/*
 			if inpututil.IsKeyJustPressed(ebiten.KeyH) {
 				if 1 < g.PickX {
