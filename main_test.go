@@ -111,6 +111,44 @@ func TestBoardMarkErase(t *testing.T) {
 				C{1, 4, Red, false},
 			},
 		},
+
+		Case{
+			"cross right down",
+			[]C{
+				C{1, 1, Red, true},
+				C{2, 2, Red, true},
+				C{3, 3, Red, true},
+				C{4, 4, Green, false},
+			},
+		},
+
+		Case{
+			"cross right down 2",
+			[]C{
+				C{3, 1, Red, true},
+				C{4, 2, Red, true},
+				C{5, 3, Red, true},
+			},
+		},
+
+		Case{
+			"cross right up",
+			[]C{
+				C{1, 4, Red, true},
+				C{2, 3, Red, true},
+				C{3, 2, Red, true},
+				C{4, 1, Green, false},
+			},
+		},
+
+		Case{
+			"cross right up 2",
+			[]C{
+				C{3, 9, Red, true},
+				C{4, 8, Red, true},
+				C{5, 7, Red, true},
+			},
+		},
 	}
 	for _, cs := range cases {
 		b := NewBoard()

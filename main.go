@@ -273,7 +273,7 @@ func RightDownLines() [][]Point {
 	rightDownLine := func(x, y int) []Point {
 		var line []Point
 		for i := 0; ; i++ {
-			cx, cy := i, y+i
+			cx, cy := x+i, y+i
 			if cx >= BoardWidth || cy >= BoardHeight {
 				break
 			}
@@ -295,8 +295,8 @@ func RightUpLines() [][]Point {
 	rightUpLine := func(x, y int) []Point {
 		var line []Point
 		for i := 0; ; i++ {
-			cx, cy := i, y-i
-			if cx >= BoardWidth || cy >= BoardHeight {
+			cx, cy := x+i, y-i
+			if cx >= BoardWidth || cy < 0 {
 				break
 			}
 			line = append(line, Point{cx, cy})
@@ -336,9 +336,6 @@ func (b *Board) MarkErase() {
 				}
 			}
 			n := i - conseq
-			if n > 1 {
-				log.Println(n)
-			}
 			if n >= 3 {
 				for _, cp := range line[conseq:i] {
 					if c, ok := b.At(cp.x, cp.y); ok && *c != nil {
