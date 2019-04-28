@@ -27,7 +27,7 @@ const (
 	Green
 	Yellow
 	Wall
-	Erasing
+	Cursor
 )
 
 var Colors []Color = []Color{
@@ -37,7 +37,7 @@ var Colors []Color = []Color{
 	Green,
 	Yellow,
 	Wall,
-	Erasing,
+	Cursor,
 }
 
 type Step int
@@ -50,7 +50,7 @@ const (
 
 const (
 	ScreenWidth  = 240
-	ScreenHeight = 320
+	ScreenHeight = 400
 
 	BoardWidth  = 8
 	BoardHeight = 22
@@ -79,40 +79,18 @@ func (g *StoneGenerator) Next() *Stone {
 }
 
 type Game struct {
-	Board        *Board
-	Gen          *StoneGenerator
-	Next         []*Stone
-	Pick         []*Stone
-	PickX, PickY int
-	Step         Step
-	Wait         int
+	Board                 *Board
+	Gen                   *StoneGenerator
+	Pick                  []*Stone
+	PickX, PickY, PickLen int
+	Step                  Step
+	Wait                  int
 }
 
-func (g *Game) ReserveNext() {
-	n := ReserveNum - len(g.Next)
+func (g *Game) ReservePick() {
+	n := ReserveNum - len(g.Pick)
 	for n > 0 {
-		g.Next = append(g.Next, g.Gen.Next())
-		n--
-	}
-}
-
-func (g *Game) RestorePick() {
-	g.Next = append(g.Pick, g.Next...)
-	g.Pick = nil
-}
-
-func (g *Game) PickNext() {
-	var n int
-	if len(g.Pick) < PickMin || PickMax <= len(g.Pick) {
-		g.RestorePick()
-		n = PickMin
-	} else {
-		n = 1
-	}
-	for n > 0 {
-		var next *Stone
-		next, g.Next = g.Next[0], g.Next[1:]
-		g.Pick = append(g.Pick, next)
+		g.Pick = append(g.Pick, g.Gen.Next())
 		n--
 	}
 }
@@ -131,11 +109,10 @@ func NewWall() *Stone {
 }
 
 func (g *Game) InitPick() {
-	g.ReserveNext()
+	g.ReservePick()
 	g.PickX = 3
 	g.PickY = PickMax
-	g.Pick = []*Stone{}
-	g.PickNext()
+	g.PickLen = 1
 }
 
 func (g *Game) Update() {
@@ -152,10 +129,18 @@ func (g *Game) Update() {
 			}
 		}
 		if inpututil.IsKeyJustPressed(ebiten.KeyK) {
-			g.PickNext()
+			if g.PickLen < PickMax-1 {
+				g.PickLen++
+			}
 		}
 		if inpututil.IsKeyJustPressed(ebiten.KeyJ) {
+			if g.PickLen > 1 {
+				g.PickLen--
+			}
+		}
+		if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
 			g.FixPick()
+			g.PickLen = 1
 			g.Step = FallStone
 		}
 	case WaitErase:
@@ -164,7 +149,7 @@ func (g *Game) Update() {
 			if g.Board.Erase() {
 				g.Step = FallStone
 			} else {
-				g.InitPick()
+				g.ReservePick()
 				g.Step = Move
 			}
 		}
@@ -192,7 +177,7 @@ func (g *Game) IsPickCollide(px, py int) bool {
 }
 
 func (g *Game) FixPick() {
-	for i, p := range g.Pick {
+	for i, p := range g.Pick[:g.PickLen] {
 		if a, ok := g.Board.At(g.PickX, g.PickY-i); ok {
 			if *a == nil || (*a).Color == None {
 				*a = p
@@ -203,7 +188,7 @@ func (g *Game) FixPick() {
 			log.Panic("fix failed", g.PickX, g.PickY-i)
 		}
 	}
-	g.Pick = []*Stone{}
+	g.Pick = g.Pick[g.PickLen:]
 }
 
 func (g *Game) Render(r *ebiten.Image) {
@@ -212,10 +197,12 @@ func (g *Game) Render(r *ebiten.Image) {
 	oy := ScreenHeight - StoneHeight*BoardHeight
 	g.Board.Render(r, ox, oy)
 	for i, p := range g.Pick {
-		g.Board.RenderStone(r, ox, oy, g.PickX, g.PickY-i, p)
-	}
-	for i, p := range g.Next {
-		g.Board.RenderStone(r, ox, oy, BoardWidth+1, -i, p)
+		cx, cy := g.PickX, g.PickY-i
+		g.Board.RenderStone(r, ox, oy, cx, cy, p)
+		if i+1 == g.PickLen {
+			g.Board.RenderCursor(r, ox, oy, cx, cy)
+		}
+
 	}
 }
 
@@ -405,6 +392,19 @@ func (b *Board) RenderStone(r *ebiten.Image, ox, oy int, cx, cy int, s *Stone) {
 	opt.GeoM.Translate(float64(cx*StoneWidth), float64(cy*StoneHeight))
 
 	if image, ok := StoneImages[s.Color]; ok {
+		err := r.DrawImage(image, opt)
+		if err != nil {
+			log.Panic(err)
+		}
+	}
+}
+
+func (b *Board) RenderCursor(r *ebiten.Image, ox, oy int, cx, cy int) {
+	opt := &ebiten.DrawImageOptions{}
+	opt.GeoM.Translate(float64(ox), float64(oy))
+	opt.GeoM.Translate(float64(cx*StoneWidth), float64(cy*StoneHeight))
+
+	if image, ok := StoneImages[Cursor]; ok {
 		err := r.DrawImage(image, opt)
 		if err != nil {
 			log.Panic(err)
