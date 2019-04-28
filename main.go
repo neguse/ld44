@@ -44,7 +44,8 @@ var Colors []Color = []Color{
 type Step int
 
 const (
-	Move Step = iota
+	Title Step = iota
+	Move
 	FallStone
 	WaitErase
 )
@@ -165,11 +166,15 @@ func clampInt(v, min, max int) int {
 }
 
 func (g *Game) Update() {
-	// enable mouse when input
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		g.MouseEnabled = true
-	}
 	switch g.Step {
+	case Title:
+		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			g.MouseEnabled = true
+			g.Step = Move
+		}
+		if len(ebiten.TouchIDs()) > 0 {
+			g.Step = Move
+		}
 	case Move:
 
 		// move by mouse cursor
@@ -263,16 +268,25 @@ func (g *Game) FixPick() {
 }
 
 func (g *Game) Render(r *ebiten.Image) {
-	ebitenutil.DebugPrint(r, "click to cut and match three!"+"\n"+g.DebugString)
-	g.DebugString = ""
-	g.Board.Render(r)
-	for i, p := range g.Pick {
-		cx, cy := g.PickX, g.PickY-i
-		g.Board.RenderStone(r, cx, cy, p)
-		if i+1 == g.PickLen {
-			g.Board.RenderCursor(r, cx, cy)
+	if g.Step == Title {
+		ebitenutil.DebugPrint(r, "  LD44 game by neguse\n  click to start\n  TODO: choose right title.")
+	} else {
+		var input string
+		if g.MouseEnabled {
+			input = "Click"
+		} else {
+			input = "Tap twice"
 		}
-
+		ebitenutil.DebugPrint(r, "  "+input+" to cut! match 3!"+"\n"+g.DebugString)
+		g.DebugString = ""
+		g.Board.Render(r)
+		for i, p := range g.Pick {
+			cx, cy := g.PickX, g.PickY-i
+			g.Board.RenderStone(r, cx, cy, p)
+			if i+1 == g.PickLen {
+				g.Board.RenderCursor(r, cx, cy)
+			}
+		}
 	}
 }
 
@@ -549,7 +563,7 @@ func init() {
 	}
 	G.Board.Initialize()
 	G.InitPick()
-	G.Step = Move
+	G.Step = Title
 }
 
 func update(screen *ebiten.Image) error {
