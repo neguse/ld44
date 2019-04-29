@@ -214,6 +214,14 @@ func (g *Game) IsFull() bool {
 	return true
 }
 
+func (g *Game) HeightAverage() float64 {
+	sum := 0.0
+	for x := 1; x < BoardWidth-1; x++ {
+		sum += float64(g.Board.HeightAt(x))
+	}
+	return sum / float64(BoardWidth-2)
+}
+
 func (g *Game) UpdateTouch() {
 	for _, tid := range ebiten.TouchIDs() {
 		if g.FirstTouchID == 0 {
@@ -472,7 +480,8 @@ func (g *Game) FixPick() {
 func (g *Game) Render(r *ebiten.Image) {
 	r.Fill(color.Gray{Y: 0x80})
 	if g.Step == Title {
-		ebitenutil.DebugPrint(r, "  LD44 game by neguse\n  click to start\n  TODO: choose right title.")
+		ebitenutil.DebugPrint(r, "\n  cut'n'align\n  LD44 game by neguse\n  click to start\n\n\n\n\n\n\n\n\n  Very thanks to \n    @hajimehoshi\n    and my brother.")
+		RenderNumber(r, g.HighScore, ScreenWidth, ScreenHeight-32, true)
 	} else {
 		/*
 			var input string
@@ -488,11 +497,13 @@ func (g *Game) Render(r *ebiten.Image) {
 			}
 		*/
 		g.DebugString = ""
-		g.Board.Render(r)
+		avg := g.HeightAverage()
+		noise := math.Max((8.0-avg)*0.2, 0.0)
+		g.Board.Render(r, noise)
 		for i, p := range g.Pick {
 			cx, cy := g.PickX, g.PickY-i
 			if cy >= 0 {
-				g.Board.RenderStone(r, cx, cy, p)
+				g.Board.RenderStone(r, cx, cy, p, noise)
 				if i+1 == g.PickLen && g.Step == Move {
 					g.Board.RenderCursor(r, cx, cy)
 				}
@@ -716,7 +727,7 @@ func (b *Board) At(cx, cy int) (**Stone, bool) {
 	return nil, false
 }
 
-func (b *Board) RenderStone(r *ebiten.Image, cx, cy int, s *Stone) {
+func (b *Board) RenderStone(r *ebiten.Image, cx, cy int, s *Stone, noise float64) {
 	if s == nil {
 		log.Panic("s must not nil")
 	}
@@ -730,7 +741,7 @@ func (b *Board) RenderStone(r *ebiten.Image, cx, cy int, s *Stone) {
 		opt.GeoM.Scale(s*s*s, s*s*s)
 		opt.GeoM.Translate(float64(StoneWidth*0.5), float64(StoneHeight)*0.5)
 	}
-	opt.GeoM.Translate(float64(b.OriginX), float64(b.OriginY))
+	opt.GeoM.Translate(float64(b.OriginX)+(rand.Float64()-0.5)*noise, float64(b.OriginY)+(rand.Float64()-0.5)*noise)
 	opt.GeoM.Translate(float64(cx*StoneWidth), float64(cy*StoneHeight))
 
 	if image, ok := StoneImages[s.Color]; ok {
@@ -768,11 +779,11 @@ func (b *Board) RenderCursor(r *ebiten.Image, cx, cy int) {
 	}
 }
 
-func (b *Board) Render(r *ebiten.Image) {
+func (b *Board) Render(r *ebiten.Image, noise float64) {
 	for cx := 0; cx < BoardWidth; cx++ {
 		for cy := 0; cy < BoardHeight; cy++ {
 			opt := &ebiten.DrawImageOptions{}
-			opt.GeoM.Translate(float64(b.OriginX), float64(b.OriginY))
+			opt.GeoM.Translate(float64(b.OriginX)+(rand.Float64()-0.5)*noise, float64(b.OriginY)+(rand.Float64()-0.5)*noise)
 			opt.GeoM.Translate(float64(cx*StoneWidth), float64(cy*StoneHeight))
 			// bg
 			var err error
@@ -786,7 +797,7 @@ func (b *Board) Render(r *ebiten.Image) {
 			}
 			// Stone
 			if c, ok := b.At(cx, cy); ok && *c != nil {
-				b.RenderStone(r, cx, cy, *c)
+				b.RenderStone(r, cx, cy, *c, noise)
 			}
 		}
 	}
