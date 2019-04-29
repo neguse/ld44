@@ -98,6 +98,8 @@ const (
 
 	JammerTurn = 5
 	JammerNum  = 3
+
+	WaitEraseFrame = 15
 )
 
 var Texture *ebiten.Image
@@ -161,7 +163,7 @@ func (g *Game) Initialize() {
 }
 
 func (g *Game) IsFull() bool {
-	for x := 1; x < BoardWidth-2; x++ {
+	for x := 1; x < BoardWidth-1; x++ {
 		if g.Board.HeightAt(x) > 1 {
 			return false
 		}
@@ -324,7 +326,7 @@ func (g *Game) Update() {
 	case FallStone:
 		if !g.Board.FallStone() {
 			if g.Board.MarkErase() {
-				g.Wait = 10
+				g.Wait = WaitEraseFrame
 				g.SequentErase++
 				if g.SequentErase == 1 {
 					PlaySound(S1)
@@ -646,8 +648,12 @@ func (b *Board) RenderStone(r *ebiten.Image, cx, cy int, s *Stone) {
 	opt := &ebiten.DrawImageOptions{}
 	// sugoi nazo no erasing animation
 	if s.Erased {
-		s := float64(G.Wait) / 3.0
-		opt.GeoM.Scale(s, s)
+		opt.GeoM.Translate(-float64(StoneWidth*0.5)+3.0, -float64(StoneHeight)*0.5)
+		r := float64(G.Wait)
+		opt.GeoM.Rotate(r)
+		s := float64(G.Wait) / float64(WaitEraseFrame)
+		opt.GeoM.Scale(s*s*s, s*s*s)
+		opt.GeoM.Translate(float64(StoneWidth*0.5), float64(StoneHeight)*0.5)
 	}
 	opt.GeoM.Translate(float64(b.OriginX), float64(b.OriginY))
 	opt.GeoM.Translate(float64(cx*StoneWidth), float64(cy*StoneHeight))
