@@ -2,7 +2,7 @@
 
 cut’n’align is a puzzle game for browser for both PC and smart phone.
 If three or more the same object are aligned in a horizontal, vertical, or cross line, objects are erased.
-cut’n’align was made for Ludum Dare 44 gamejam. https://ldjam.com/events/ludum-dare/44/$141479
+cut’n’align was made for Ludum Dare 44 gamejam. https://ldjam.com/events/ludum-dare/44/cutnalign
 
 ## LICENSE
 
