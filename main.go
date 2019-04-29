@@ -143,6 +143,17 @@ type Game struct {
 	Turn int
 }
 
+func NewGame() *Game {
+	g := &Game{
+		Board:        &Board{},
+		MouseEnabled: false,
+	}
+	g.Board.Initialize()
+	g.InitPick()
+	g.Step = Title
+	return g
+}
+
 func (g *Game) UpdateTouch() {
 	for _, tid := range ebiten.TouchIDs() {
 		if g.FirstTouchID == 0 {
@@ -167,8 +178,6 @@ func (g *Game) UpdateTouch() {
 		cursored := cx == g.PickX && cy == (g.PickY-g.PickLen)+1
 		if cursored && g.FirstTouchCursored && pcx == cx && pcy == cy {
 			g.FixPick()
-			g.PickLen = 1
-			g.Step = FallStone
 		}
 	}
 }
@@ -205,6 +214,7 @@ func (g *Game) InitPick() {
 	g.PickX = 3
 	g.PickY = PickMax
 	g.PickLen = 1
+	g.AdjustPick(g.PickX, BoardHeight)
 }
 
 func clampInt(v, min, max int) int {
@@ -232,9 +242,9 @@ func minInt(v, v2 int) int {
 
 func (g *Game) AdjustPick(cx, cy int) {
 	g.PickX = clampInt(cx, 1, BoardWidth-2)
-	g.PickLen = clampInt((g.PickY-cy)+1, 0, PickMax)
 	height := g.Board.HeightAt(g.PickX)
-	g.PickY = PickMax - 1 - maxInt(PickMax-height, 0)
+	g.PickY = PickMax - 1 + minInt(height-PickMax-1, 0)
+	g.PickLen = clampInt((g.PickY-maxInt(cy, 0))+1, 0, PickMax)
 }
 
 func (g *Game) Update() {
@@ -248,7 +258,6 @@ func (g *Game) Update() {
 			g.Step = Move
 		}
 	case Move:
-
 		// move by mouse cursor
 		if g.MouseEnabled {
 			x, y := ebiten.CursorPosition()
@@ -256,11 +265,9 @@ func (g *Game) Update() {
 			g.AdjustPick(cx, cy)
 			if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 				g.FixPick()
-				g.PickLen = 1
-				g.Step = FallStone
 			}
 		}
-
+		// move by touch
 		g.UpdateTouch()
 
 		/*
@@ -356,18 +363,22 @@ func (g *Game) IsPickCollide(px, py int) bool {
 }
 
 func (g *Game) FixPick() {
-	for i, p := range g.Pick[:g.PickLen] {
-		if a, ok := g.Board.At(g.PickX, g.PickY-i); ok {
-			if *a == nil || (*a).Color == None {
-				*a = p
+	if g.PickLen > 0 {
+		for i, p := range g.Pick[:g.PickLen] {
+			if a, ok := g.Board.At(g.PickX, g.PickY-i); ok {
+				if *a == nil || (*a).Color == None {
+					*a = p
+				} else {
+					log.Panic("cell must nil", g.PickX, g.PickY-i, *a)
+				}
 			} else {
-				log.Panic("cell must nil", g.PickX, g.PickY-i, *a)
+				log.Panic("fix failed", g.PickX, g.PickY-i)
 			}
-		} else {
-			log.Panic("fix failed", g.PickX, g.PickY-i)
 		}
+		g.Pick = g.Pick[g.PickLen:]
+		g.PickLen = 1
+		g.Step = FallStone
 	}
-	g.Pick = g.Pick[g.PickLen:]
 }
 
 func (g *Game) Render(r *ebiten.Image) {
@@ -617,13 +628,13 @@ func (b *Board) PosToCell(x, y int) (cx, cy int) {
 }
 
 func (b *Board) HeightAt(x int) int {
-	for y := BoardHeight - 1; y >= 0; y-- {
-		if c, ok := b.At(x, y); ok && (*c) != nil {
+	for y := 0; y < BoardHeight; y++ {
+		if c, ok := b.At(x, y); !ok || (*c) == nil {
 			continue
 		}
 		return y
 	}
-	return 0
+	return BoardHeight
 }
 
 func (b *Board) RenderCursor(r *ebiten.Image, cx, cy int) {
@@ -734,13 +745,7 @@ func init() {
 		SoundMap[s] = p
 	}
 
-	G = &Game{
-		Board:        &Board{},
-		MouseEnabled: false,
-	}
-	G.Board.Initialize()
-	G.InitPick()
-	G.Step = Title
+	G = NewGame()
 }
 
 func update(screen *ebiten.Image) error {

@@ -1,7 +1,127 @@
 package main
 
-import "testing"
+import (
+	"testing"
+)
 
+func TestGameHeight(t *testing.T) {
+	g := NewGame()
+	if c, ok := g.Board.At(1, 1); ok {
+		(*c) = &Stone{Color: Red}
+	} else {
+		t.FailNow()
+	}
+
+	height := g.Board.HeightAt(1)
+	if height != 1 {
+		t.Error("height", 1, height)
+	}
+}
+
+func TestGameAdjustPick(t *testing.T) {
+	type C struct {
+		x, y int
+		c    Color
+	}
+	type P struct {
+		t            string
+		cx, cy       int
+		px, py, plen int
+	}
+	type Case struct {
+		t string
+		c []C
+		p []P
+	}
+	cases := []Case{
+		Case{
+			"emptywall",
+			[]C{},
+			[]P{
+				P{"-", 0, 0, 1, 0, 0},
+			},
+		},
+		Case{
+			"empty",
+			[]C{},
+			[]P{
+				P{"-", 1, PickMax - 1, 1, PickMax, 1},
+			},
+		},
+		Case{
+			"just+1",
+			[]C{
+				C{1, PickMax + 1, Red},
+			},
+			[]P{
+				P{"+1", 1, PickMax, 1, PickMax - 1, 0},
+				P{" 0", 1, PickMax - 1, 1, PickMax - 1, 1},
+				P{"-1", 1, PickMax - 2, 1, PickMax - 1, 2},
+			},
+		},
+		Case{
+			"just",
+			[]C{
+				C{1, PickMax, Red},
+			},
+			[]P{
+				P{"+1", 1, PickMax, 1, PickMax - 2, 0},
+				P{" 0", 1, PickMax - 1, 1, PickMax - 2, 0},
+				P{"-1", 1, PickMax - 2, 1, PickMax - 2, 1},
+				P{"-2", 1, PickMax - 3, 1, PickMax - 2, 2},
+			},
+		},
+		Case{
+			"just-1",
+			[]C{
+				C{1, PickMax - 1, Red},
+			},
+			[]P{
+				P{"+1", 1, PickMax, 1, PickMax - 3, 0},
+				P{" 0", 1, PickMax - 1, 1, PickMax - 3, 0},
+				P{"-1", 1, PickMax - 2, 1, PickMax - 3, 0},
+				P{"-2", 1, PickMax - 3, 1, PickMax - 3, 1},
+				P{"-3", 1, PickMax - 4, 1, PickMax - 3, 2},
+			},
+		},
+		Case{
+			"full+1",
+			[]C{
+				C{1, 2, Red},
+			},
+			[]P{
+				P{"+1", 1, 2, 1, 0, 0},
+				P{" 0", 1, 1, 1, 0, 0},
+				P{"-1", 1, 0, 1, 0, 1},
+			},
+		},
+		Case{
+			"full",
+			[]C{
+				C{1, 1, Red},
+			},
+			[]P{
+				P{"+1", 1, 1, 1, -1, 0},
+				P{" 0", 1, 0, 1, -1, 0},
+				P{"-1", 1, -1, 1, -1, 0},
+			},
+		},
+	}
+	for _, cs := range cases {
+		g := NewGame()
+		for _, p := range cs.p {
+			for _, cell := range cs.c {
+				if c, ok := g.Board.At(cell.x, cell.y); ok {
+					(*c) = &Stone{Color: cell.c}
+				}
+				g.AdjustPick(p.cx, p.cy)
+				if g.PickX != p.px || g.PickY != p.py || g.PickLen != p.plen {
+					t.Error(cs.t, p.t, p.px, g.PickX, p.py, g.PickY, p.plen, g.PickLen)
+				}
+			}
+		}
+	}
+}
 func TestBoardMarkErase(t *testing.T) {
 	type C struct {
 		x, y int
