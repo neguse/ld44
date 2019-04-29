@@ -4,6 +4,30 @@ import (
 	"testing"
 )
 
+func TestCalcScore(t *testing.T) {
+	type Case struct {
+		t       string
+		sequent int
+		num     int
+		ans     int
+		equ     string
+	}
+	cases := []Case{
+		Case{
+			"1",
+			1, 3,
+			6,
+			"2x3=6.",
+		},
+	}
+	for _, cs := range cases {
+		ans, equ := CalcScore(cs.sequent, cs.num)
+		if ans != cs.ans || equ != cs.equ {
+			t.Error(cs.t, ans, cs.ans, equ, cs.equ)
+		}
+	}
+}
+
 func TestGameHeight(t *testing.T) {
 	g := NewGame()
 	if c, ok := g.Board.At(1, 1); ok {

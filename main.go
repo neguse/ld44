@@ -1,9 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"image"
+	"image/color"
 	"io/ioutil"
 	"log"
+	"math"
 	"math/rand"
 
 	"github.com/hajimehoshi/ebiten"
@@ -35,10 +38,13 @@ const (
 	Blue
 	Green
 	Yellow
+	Dummy1
+	Dummy2
+	Dummy3
+	Limit
 	Wall
 	Cursor
 	Jammer
-	Limit
 )
 
 var Colors []Color = []Color{
@@ -47,10 +53,13 @@ var Colors []Color = []Color{
 	Blue,
 	Green,
 	Yellow,
+	Dummy1,
+	Dummy2,
+	Dummy3,
+	Limit,
 	Wall,
 	Cursor,
 	Jammer,
-	Limit,
 }
 
 type Sound int
@@ -92,14 +101,20 @@ const (
 	StoneWidth  = 16
 	StoneHeight = 16
 
-	PickMin    = 2
 	PickMax    = 6
 	ReserveNum = PickMax
 
 	JammerTurn = 5
 	JammerNum  = 3
 
+	NumberWidth  = 16
+	NumberHeight = 32
+
 	WaitEraseFrame = 15
+
+	Cross  = 10
+	Equal  = 11
+	Period = 12
 )
 
 var Texture *ebiten.Image
@@ -107,6 +122,7 @@ var AudioCtx *audio.Context
 var Music *audio.Player
 var MusicOff *audio.Player
 var StoneImages map[Color]*ebiten.Image
+var NumberImages map[int]*ebiten.Image
 var G *Game
 
 func PlayMusic(on bool) {
@@ -158,9 +174,12 @@ type Game struct {
 	FirstTouchLastPoint Point
 	FirstTouchCursored  bool
 
-	SequentErase int
-
-	Turn int
+	SequentErase  int
+	EraseNum      int
+	Turn          int
+	Score         int
+	ScoreEquation string
+	HighScore     int
 }
 
 func NewGame() *Game {
@@ -175,6 +194,11 @@ func (g *Game) Initialize() {
 	g.Board.Initialize()
 	g.InitPick()
 	g.Step = Title
+	g.Wait = 0
+	g.SequentErase = 0
+	g.EraseNum = 0
+	g.Turn = 0
+	g.Score = 0
 }
 
 func (g *Game) IsFull() bool {
@@ -239,6 +263,13 @@ func NewJammer() *Stone {
 	return &Stone{
 		Color: Jammer,
 	}
+}
+
+func CalcScore(sequent, num int) (int, string) {
+	a := 1 << uint(sequent)
+	b := num
+	score := a * b
+	return score, fmt.Sprintf("%dx%d=%d.", a, b, score)
 }
 
 func (g *Game) InitPick() {
@@ -342,9 +373,14 @@ func (g *Game) Update() {
 		}
 	case FallStone:
 		if !g.Board.FallStone() {
-			if g.Board.MarkErase() {
+			if num := g.Board.MarkErase(); num > 0 {
 				g.Wait = WaitEraseFrame
 				g.SequentErase++
+				g.EraseNum = num
+				score, scoreEquation := CalcScore(g.SequentErase, num)
+				g.Score += score
+				g.HighScore = maxInt(g.HighScore, g.Score)
+				g.ScoreEquation = scoreEquation
 				if g.SequentErase == 1 {
 					PlaySound(S1)
 				} else if g.SequentErase == 2 {
@@ -429,28 +465,41 @@ func (g *Game) FixPick() {
 }
 
 func (g *Game) Render(r *ebiten.Image) {
+	r.Fill(color.Gray{Y: 0x80})
 	if g.Step == Title {
 		ebitenutil.DebugPrint(r, "  LD44 game by neguse\n  click to start\n  TODO: choose right title.")
 	} else {
-		var input string
-		if g.MouseEnabled {
-			input = "Click"
-		} else {
-			input = "Tap twice"
-		}
-		if g.Step == GameOver {
-			ebitenutil.DebugPrint(r, "Game is over")
-		} else {
-			ebitenutil.DebugPrint(r, "  "+input+" to cut! match 3!"+"\n"+g.DebugString)
-		}
+		/*
+			var input string
+			if g.MouseEnabled {
+				input = "Click"
+			} else {
+				input = "Tap twice"
+			}
+			if g.Step == GameOver {
+				ebitenutil.DebugPrint(r, "Game is over")
+			} else {
+				ebitenutil.DebugPrint(r, "  "+input+" to cut! match 3!"+"\n"+g.DebugString)
+			}
+		*/
 		g.DebugString = ""
 		g.Board.Render(r)
 		for i, p := range g.Pick {
 			cx, cy := g.PickX, g.PickY-i
-			g.Board.RenderStone(r, cx, cy, p)
-			if i+1 == g.PickLen {
-				g.Board.RenderCursor(r, cx, cy)
+			if cy >= 0 {
+				g.Board.RenderStone(r, cx, cy, p)
+				if i+1 == g.PickLen && g.Step == Move {
+					g.Board.RenderCursor(r, cx, cy)
+				}
 			}
+		}
+		if g.SequentErase > 0 {
+			f := (float64(g.Wait) / WaitEraseFrame)
+			dx := f * f * f * NumberWidth
+			RenderNumber(r, g.SequentErase, BoardWidth*StoneWidth/2+NumberWidth+int(dx), 0, false)
+			RenderEquation(r, g.ScoreEquation, ScreenWidth, ScreenHeight-32, true)
+		} else {
+			RenderNumber(r, g.Score, ScreenWidth, ScreenHeight-32, true)
 		}
 	}
 }
@@ -485,7 +534,7 @@ func (b *Board) Initialize() {
 		}
 	}
 	b.OriginX = 10
-	b.OriginY = ScreenHeight - StoneHeight*BoardHeight
+	b.OriginY = -10 + ScreenHeight - StoneHeight*BoardHeight
 }
 
 type Point struct {
@@ -583,8 +632,8 @@ func (b *Board) MarkEraseAt(cx, cy int) bool {
 	return false
 }
 
-func (b *Board) MarkErase() bool {
-	erased := false
+func (b *Board) MarkErase() int {
+	num := 0
 	var lines [][]Point
 
 	lines = append(lines, HorizontalLines()...)
@@ -610,14 +659,14 @@ func (b *Board) MarkErase() bool {
 			if n >= 3 {
 				for _, cp := range line[sequent:i] {
 					if b.MarkEraseAt(cp.x, cp.y) {
-						erased = true
+						num++
 					}
 				}
 			}
 			sequent = i
 		}
 	}
-	return erased
+	return num
 }
 
 func (b *Board) Erase() bool {
@@ -735,12 +784,50 @@ func (b *Board) Render(r *ebiten.Image) {
 	}
 }
 
+// x, y is right bottom
+func RenderEquation(r *ebiten.Image, equation string, x, y int, rot bool) {
+	ctoi := func(ch rune) int {
+		switch ch {
+		case 'x':
+			return Cross
+		case '=':
+			return Equal
+		case '.':
+			return Period
+		default:
+			return int(ch) - int('0')
+		}
+	}
+	for i, c := range equation {
+		opt := &ebiten.DrawImageOptions{}
+		if rot {
+			opt.GeoM.Rotate(math.Pi / 2)
+		}
+		opt.GeoM.Translate(float64(x-NumberWidth), float64(y+(-len(equation)+i+1)*NumberWidth))
+		r.DrawImage(NumberImages[ctoi(c)], opt)
+	}
+}
+
+// perhaps x, y is right bottom
+func RenderNumber(r *ebiten.Image, n int, x, y int, rot bool) {
+	opt := &ebiten.DrawImageOptions{}
+	if rot {
+		opt.GeoM.Rotate(math.Pi / 2)
+	}
+	opt.GeoM.Translate(float64(x-NumberWidth), float64(y))
+	r.DrawImage(NumberImages[n%10], opt)
+	if n >= 10 {
+		RenderNumber(r, n/10, x, y-NumberWidth, rot)
+	}
+}
+
 func NewBoard() *Board {
 	return &Board{}
 }
 
 func init() {
 	StoneImages = make(map[Color]*ebiten.Image)
+	NumberImages = make(map[int]*ebiten.Image)
 	sfs, err := fs.New()
 	if err != nil {
 		log.Panic(err)
@@ -769,6 +856,18 @@ func init() {
 	}
 	for _, c := range Colors {
 		StoneImages[c] = stoneSubImage(int(c))
+	}
+	numberSubImage := func(i int) *ebiten.Image {
+		x := i % 8
+		y := i / 8
+		image := Texture.SubImage(
+			image.Rectangle{
+				image.Point{NumberWidth * x, 32 + NumberHeight*y},
+				image.Point{NumberWidth * (x + 1), 32 + NumberHeight*(y+1)}})
+		return image.(*ebiten.Image)
+	}
+	for i := 0; i < 13; i++ {
+		NumberImages[i] = numberSubImage(i)
 	}
 
 	AudioCtx, err = audio.NewContext(44100)
