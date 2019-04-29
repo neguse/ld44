@@ -105,8 +105,23 @@ const (
 var Texture *ebiten.Image
 var AudioCtx *audio.Context
 var Music *audio.Player
+var MusicOff *audio.Player
 var StoneImages map[Color]*ebiten.Image
 var G *Game
+
+func PlayMusic(on bool) {
+	if on {
+		t := MusicOff.Current()
+		Music.Seek(t)
+		Music.Play()
+		MusicOff.Pause()
+	} else {
+		t := Music.Current()
+		MusicOff.Seek(t)
+		MusicOff.Play()
+		Music.Pause()
+	}
+}
 
 func PlaySound(s Sound) {
 	if s, ok := SoundMap[s]; ok {
@@ -270,9 +285,11 @@ func (g *Game) Update() {
 		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 			g.MouseEnabled = true
 			g.Step = Move
+			PlayMusic(true)
 		}
 		if len(ebiten.TouchIDs()) > 0 {
 			g.Step = Move
+			PlayMusic(true)
 		}
 	case Move:
 		// move by mouse cursor
@@ -350,6 +367,7 @@ func (g *Game) Update() {
 		g.ReservePick()
 		if g.IsFull() {
 			g.Step = GameOver
+			PlayMusic(false)
 		} else {
 			g.Step = Move
 			g.SequentErase = 0
@@ -758,21 +776,38 @@ func init() {
 		log.Panic(err)
 	}
 
-	mf, err := sfs.Open("/bgm.ogg")
-	if err != nil {
-		log.Panic(err)
+	{
+		mf, err := sfs.Open("/bgm.ogg")
+		if err != nil {
+			log.Panic(err)
+		}
+		defer mf.Close()
+		s, err := vorbis.Decode(AudioCtx, mf)
+		if err != nil {
+			log.Panic(err)
+		}
+		Music, err = audio.NewPlayer(AudioCtx, audio.NewInfiniteLoop(s, s.Length()))
+		if err != nil {
+			log.Panic(err)
+		}
+		Music.SetVolume(Volume)
 	}
-	defer mf.Close()
-	s, err := vorbis.Decode(AudioCtx, mf)
-	if err != nil {
-		log.Panic(err)
+	{
+		mf, err := sfs.Open("/bgm_off.ogg")
+		if err != nil {
+			log.Panic(err)
+		}
+		defer mf.Close()
+		s, err := vorbis.Decode(AudioCtx, mf)
+		if err != nil {
+			log.Panic(err)
+		}
+		MusicOff, err = audio.NewPlayer(AudioCtx, audio.NewInfiniteLoop(s, s.Length()))
+		if err != nil {
+			log.Panic(err)
+		}
+		MusicOff.SetVolume(Volume)
 	}
-	Music, err = audio.NewPlayer(AudioCtx, audio.NewInfiniteLoop(s, s.Length()))
-	if err != nil {
-		log.Panic(err)
-	}
-	Music.SetVolume(Volume)
-	Music.Play()
 
 	for sname, s := range SoundNameMap {
 		sf, err := sfs.Open(sname)
@@ -796,6 +831,7 @@ func init() {
 	}
 
 	G = NewGame()
+	PlayMusic(false)
 }
 
 func update(screen *ebiten.Image) error {
