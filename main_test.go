@@ -88,6 +88,16 @@ func TestBoardMarkErase(t *testing.T) {
 				C{5, 7, Red, true},
 			},
 		},
+
+		Case{
+			"jammer",
+			[]C{
+				C{1, 3, Red, true},
+				C{2, 3, Red, true},
+				C{3, 3, Red, true},
+				C{4, 3, Jammer, true},
+			},
+		},
 	}
 	for _, cs := range cases {
 		b := NewBoard()

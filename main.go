@@ -471,6 +471,29 @@ func RightUpLines() [][]Point {
 	return lines
 }
 
+func (b *Board) MarkEraseAt(cx, cy int) bool {
+	if c, ok := b.At(cx, cy); ok && *c != nil {
+		(*c).Erased = true
+
+		// erase jammer next of erased
+		dp := []Point{
+			Point{-1, 0},
+			Point{1, 0},
+			Point{0, -1},
+			Point{0, 1},
+		}
+		for _, d := range dp {
+			ncx, ncy := cx+d.x, cy+d.y
+			if c, ok := b.At(ncx, ncy); ok && *c != nil && (*c).Color == Jammer {
+				(*c).Erased = true
+			}
+		}
+
+		return true
+	}
+	return false
+}
+
 func (b *Board) MarkErase() bool {
 	erased := false
 	var lines [][]Point
@@ -497,8 +520,7 @@ func (b *Board) MarkErase() bool {
 			n := i - sequent
 			if n >= 3 {
 				for _, cp := range line[sequent:i] {
-					if c, ok := b.At(cp.x, cp.y); ok && *c != nil {
-						(*c).Erased = true
+					if b.MarkEraseAt(cp.x, cp.y) {
 						erased = true
 					}
 				}
