@@ -79,6 +79,7 @@ const (
 	FallStone
 	WaitErase
 	CauseJammer
+	GameOver
 )
 
 const (
@@ -150,10 +151,22 @@ func NewGame() *Game {
 		Board:        &Board{},
 		MouseEnabled: false,
 	}
+	g.Initialize()
+	return g
+}
+func (g *Game) Initialize() {
 	g.Board.Initialize()
 	g.InitPick()
 	g.Step = Title
-	return g
+}
+
+func (g *Game) IsFull() bool {
+	for x := 1; x < BoardWidth-2; x++ {
+		if g.Board.HeightAt(x) > 1 {
+			return false
+		}
+	}
+	return true
 }
 
 func (g *Game) UpdateTouch() {
@@ -333,8 +346,19 @@ func (g *Game) Update() {
 			g.CauseJammer()
 		}
 		g.ReservePick()
-		g.Step = Move
-		g.SequentErase = 0
+		if g.IsFull() {
+			g.Step = GameOver
+		} else {
+			g.Step = Move
+			g.SequentErase = 0
+		}
+	case GameOver:
+		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
+			g.Initialize()
+		}
+		if len(ebiten.TouchIDs()) > 0 {
+			g.Initialize()
+		}
 	}
 }
 
@@ -394,7 +418,11 @@ func (g *Game) Render(r *ebiten.Image) {
 		} else {
 			input = "Tap twice"
 		}
-		ebitenutil.DebugPrint(r, "  "+input+" to cut! match 3!"+"\n"+g.DebugString)
+		if g.Step == GameOver {
+			ebitenutil.DebugPrint(r, "Game is over")
+		} else {
+			ebitenutil.DebugPrint(r, "  "+input+" to cut! match 3!"+"\n"+g.DebugString)
+		}
 		g.DebugString = ""
 		g.Board.Render(r)
 		for i, p := range g.Pick {
@@ -413,23 +441,29 @@ type Board struct {
 }
 
 func (b *Board) Initialize() {
+	for cx := 0; cx < BoardWidth; cx++ {
+		for cy := 0; cy < BoardHeight; cy++ {
+			if c, ok := b.At(cx, cy); ok {
+				*c = nil
+			}
+		}
+	}
 	// Bottom
 	for cx := 0; cx < BoardWidth; cx++ {
-		if a, ok := b.At(cx, BoardHeight-1); ok {
-			*a = NewWall()
+		if c, ok := b.At(cx, BoardHeight-1); ok {
+			*c = NewWall()
 		}
 	}
 	for cy := 0; cy < BoardHeight; cy++ {
 		// left
-		if a, ok := b.At(0, cy); ok {
-			*a = NewWall()
+		if c, ok := b.At(0, cy); ok {
+			*c = NewWall()
 		}
 		// right
-		if a, ok := b.At(BoardWidth-1, cy); ok {
-			*a = NewWall()
+		if c, ok := b.At(BoardWidth-1, cy); ok {
+			*c = NewWall()
 		}
 	}
-
 	b.OriginX = 10
 	b.OriginY = ScreenHeight - StoneHeight*BoardHeight
 }
