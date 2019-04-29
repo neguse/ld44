@@ -480,7 +480,7 @@ func (g *Game) FixPick() {
 func (g *Game) Render(r *ebiten.Image) {
 	r.Fill(color.Gray{Y: 0x80})
 	if g.Step == Title {
-		ebitenutil.DebugPrint(r, "\n  cut'n'align\n  LD44 game by neguse\n  click to start\n\n\n\n\n\n\n\n\n  Very thanks to \n    @hajimehoshi\n    and my brother.")
+		ebitenutil.DebugPrint(r, "\n  cut'n'align\n  LD44 game by @neguse\n 2019 end of heisei generation\n\n\n\n  click to start\n\n\n\n\n\n\n  Very thanks to \n    @hajimehoshi\n    and my brother.")
 		RenderNumber(r, g.HighScore, ScreenWidth, ScreenHeight-32, true)
 	} else {
 		/*
