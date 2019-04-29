@@ -92,6 +92,9 @@ const (
 	PickMin    = 2
 	PickMax    = 6
 	ReserveNum = PickMax
+
+	JammerTurn = 5
+	JammerNum  = 3
 )
 
 var Texture *ebiten.Image
@@ -152,8 +155,7 @@ func (g *Game) UpdateTouch() {
 		if tid == g.FirstTouchID {
 			x, y := ebiten.TouchPosition(tid)
 			cx, cy := g.Board.PosToCell(x, y)
-			g.PickX = clampInt(cx, 1, BoardWidth-2)
-			g.PickLen = clampInt((g.PickY-cy)+1, 1, PickMax)
+			g.AdjustPick(cx, cy)
 			g.FirstTouchLastPoint = Point{x, y}
 		}
 	}
@@ -214,6 +216,27 @@ func clampInt(v, min, max int) int {
 	return v
 }
 
+func maxInt(v, v2 int) int {
+	if v > v2 {
+		return v
+	}
+	return v2
+}
+
+func minInt(v, v2 int) int {
+	if v > v2 {
+		return v2
+	}
+	return v
+}
+
+func (g *Game) AdjustPick(cx, cy int) {
+	g.PickX = clampInt(cx, 1, BoardWidth-2)
+	g.PickLen = clampInt((g.PickY-cy)+1, 0, PickMax)
+	height := g.Board.HeightAt(g.PickX)
+	g.PickY = PickMax - 1 - maxInt(PickMax-height, 0)
+}
+
 func (g *Game) Update() {
 	switch g.Step {
 	case Title:
@@ -230,8 +253,7 @@ func (g *Game) Update() {
 		if g.MouseEnabled {
 			x, y := ebiten.CursorPosition()
 			cx, cy := g.Board.PosToCell(x, y)
-			g.PickX = clampInt(cx, 1, BoardWidth-2)
-			g.PickLen = clampInt((g.PickY-cy)+1, 1, PickMax)
+			g.AdjustPick(cx, cy)
 			if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 				g.FixPick()
 				g.PickLen = 1
@@ -298,7 +320,7 @@ func (g *Game) Update() {
 		}
 	case CauseJammer:
 		g.Turn++
-		if g.Turn%5 == 0 {
+		if g.Turn%JammerTurn == 0 {
 			g.CauseJammer()
 		}
 		g.ReservePick()
@@ -308,8 +330,7 @@ func (g *Game) Update() {
 }
 
 func (g *Game) CauseJammer() {
-	n := 2
-	for i := 0; i < n; i++ {
+	for i := 0; i < JammerNum; i++ {
 		x := rand.Intn(BoardWidth-2) + 1
 		y := g.Board.HeightAt(x)
 		if y > 1 {
