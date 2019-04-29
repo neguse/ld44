@@ -4,15 +4,17 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"image/png"
 	"io/ioutil"
 	"log"
 	"math"
 	"math/rand"
 
+	"github.com/hajimehoshi/ebiten/ebitenutil"
+
 	"github.com/hajimehoshi/ebiten"
 	"github.com/hajimehoshi/ebiten/audio"
 	"github.com/hajimehoshi/ebiten/audio/vorbis"
-	"github.com/hajimehoshi/ebiten/ebitenutil"
 	"github.com/hajimehoshi/ebiten/inpututil"
 
 	_ "github.com/neguse/ld44/statik"
@@ -27,7 +29,7 @@ type Stone struct {
 }
 
 func (s *Stone) Colored() bool {
-	return s.Color == Red || s.Color == Blue || s.Color == Green || s.Color == Yellow
+	return s.Color == Red || s.Color == Blue || s.Color == Green || s.Color == Yellow || s.Color == Pink || s.Color == Orange
 }
 
 type Color int
@@ -38,8 +40,8 @@ const (
 	Blue
 	Green
 	Yellow
-	Dummy1
-	Dummy2
+	Pink
+	Orange
 	Dummy3
 	Limit
 	Wall
@@ -53,8 +55,8 @@ var Colors []Color = []Color{
 	Blue,
 	Green,
 	Yellow,
-	Dummy1,
-	Dummy2,
+	Pink,
+	Orange,
 	Dummy3,
 	Limit,
 	Wall,
@@ -110,6 +112,9 @@ const (
 	NumberWidth  = 16
 	NumberHeight = 32
 
+	AlphaWidth  = 16
+	AlphaHeight = 16
+
 	WaitEraseFrame = 15
 
 	Cross  = 10
@@ -126,6 +131,7 @@ var Music *audio.Player
 var MusicOff *audio.Player
 var StoneImages map[Color]*ebiten.Image
 var NumberImages map[int]*ebiten.Image
+var AlphaImages map[rune]*ebiten.Image
 var G *Game
 
 func PlayMusic(on bool) {
@@ -157,7 +163,7 @@ func (g *StoneGenerator) Next() *Stone {
 	// TODO correct rate
 	r := rand.Intn(4)
 	return &Stone{
-		Color: []Color{Red, Blue, Green, Yellow}[r],
+		Color: []Color{Red, Blue, Green, Yellow, Pink, Orange}[r],
 	}
 }
 
@@ -255,13 +261,6 @@ func (g *Game) ReservePick() {
 	for n > 0 {
 		g.Pick = append(g.Pick, g.Gen.Next())
 		n--
-	}
-}
-
-func (g *Game) NewColoredStone() *Stone {
-	r := rand.Intn(4)
-	return &Stone{
-		Color: []Color{Red, Blue, Green, Yellow}[r],
 	}
 }
 
@@ -479,27 +478,24 @@ func (g *Game) FixPick() {
 
 func (g *Game) Render(r *ebiten.Image) {
 	r.Fill(color.Gray{Y: 0x80})
-	if g.Step == Title {
-		ebitenutil.DebugPrint(r, "\n  cut'n'align\n  LD44 game by @neguse\n 2019 end of heisei generation\n\n\n\n  click to start\n\n\n\n\n\n\n  Very thanks to \n    @hajimehoshi\n    and my brother.")
-		RenderNumber(r, g.HighScore, ScreenWidth, ScreenHeight-32, true)
-	} else {
-		/*
-			var input string
-			if g.MouseEnabled {
-				input = "Click"
-			} else {
-				input = "Tap twice"
-			}
-			if g.Step == GameOver {
-				ebitenutil.DebugPrint(r, "Game is over")
-			} else {
-				ebitenutil.DebugPrint(r, "  "+input+" to cut! match 3!"+"\n"+g.DebugString)
-			}
-		*/
-		g.DebugString = ""
-		avg := g.HeightAverage()
-		noise := math.Max((8.0-avg)*0.2, 0.0)
-		g.Board.Render(r, noise)
+	/*
+		var input string
+		if g.MouseEnabled {
+			input = "Click"
+		} else {
+			input = "Tap twice"
+		}
+		if g.Step == GameOver {
+			ebitenutil.DebugPrint(r, "Game is over")
+		} else {
+			ebitenutil.DebugPrint(r, "  "+input+" to cut! match 3!"+"\n"+g.DebugString)
+		}
+	*/
+	g.DebugString = ""
+	avg := g.HeightAverage()
+	noise := math.Max((8.0-avg)*0.2, 0.0)
+	g.Board.Render(r, noise)
+	if g.Step != Title {
 		for i, p := range g.Pick {
 			cx, cy := g.PickX, g.PickY-i
 			if cy >= 0 {
@@ -517,10 +513,23 @@ func (g *Game) Render(r *ebiten.Image) {
 		} else {
 			RenderNumber(r, g.Score, ScreenWidth, ScreenHeight-32, true)
 		}
-		if g.Step == GameOver {
-			RenderEnd(r, BoardWidth*StoneWidth/2-NumberWidth, StoneHeight*3, g.Ticks)
-		}
 	}
+	if g.Step == GameOver {
+		RenderEnd(r, BoardWidth*StoneWidth/2-NumberWidth, StoneHeight*3, g.Ticks)
+	}
+	if g.Step == Title {
+		// ebitenutil.DebugPrint(r, "\n  cut'n'align\n  LD44 game by @neguse\n 2019 end of heisei generation\n\n\n\n  click to start\n\n\n\n\n\n\n  Very thanks to \n    @hajimehoshi\n    and my brother.")
+		ebitenutil.DebugPrintAt(r, "Very thanks to\n@hajimehoshi\nand my brother.", 32, ScreenHeight-60)
+		RenderNumber(r, g.HighScore, ScreenWidth, ScreenHeight-32, true)
+		RenderAlpha(r, "cutn", StoneWidth*1.5, StoneHeight*3)
+		RenderAlpha(r, "align", StoneWidth*2.5, StoneHeight*4)
+		RenderAlpha(r, "click", StoneWidth*1.5, StoneHeight*6)
+		RenderAlpha(r, "to", StoneWidth*3.5, StoneHeight*7)
+		RenderAlpha(r, "cut", StoneWidth*2.5, StoneHeight*8)
+		// RenderAlpha(r, "@@@@@@", StoneWidth*1.5, StoneHeight*12+1)
+		RenderAlpha(r, "neguse", StoneWidth*1.5, StoneHeight*13+1)
+	}
+
 }
 
 type Board struct {
@@ -827,6 +836,15 @@ func RenderEquation(r *ebiten.Image, equation string, x, y int, rot bool) {
 	}
 }
 
+// x, y is right bottom
+func RenderAlpha(r *ebiten.Image, str string, x, y int) {
+	for i, c := range str {
+		opt := &ebiten.DrawImageOptions{}
+		opt.GeoM.Translate(float64(x+AlphaWidth*i), float64(y))
+		r.DrawImage(AlphaImages[c], opt)
+	}
+}
+
 // perhaps x, y is right bottom
 func RenderNumber(r *ebiten.Image, n int, x, y int, rot bool) {
 	opt := &ebiten.DrawImageOptions{}
@@ -856,6 +874,7 @@ func NewBoard() *Board {
 func init() {
 	StoneImages = make(map[Color]*ebiten.Image)
 	NumberImages = make(map[int]*ebiten.Image)
+	AlphaImages = make(map[rune]*ebiten.Image)
 	sfs, err := fs.New()
 	if err != nil {
 		log.Panic(err)
@@ -866,7 +885,7 @@ func init() {
 	}
 	defer tf.Close()
 	var texture image.Image
-	if texture, _, err = image.Decode(tf); err != nil {
+	if texture, err = png.Decode(tf); err != nil {
 		log.Panic(err)
 	}
 	if Texture, err = ebiten.NewImageFromImage(texture, ebiten.FilterNearest); err != nil {
@@ -896,6 +915,18 @@ func init() {
 	}
 	for i := 0; i < 16; i++ {
 		NumberImages[i] = numberSubImage(i)
+	}
+	alphaSubImage := func(i int) *ebiten.Image {
+		x := i % 8
+		y := i / 8
+		image := Texture.SubImage(
+			image.Rectangle{
+				image.Point{AlphaWidth * x, 96 + AlphaHeight*y},
+				image.Point{AlphaWidth * (x + 1), 96 + AlphaHeight*(y+1)}})
+		return image.(*ebiten.Image)
+	}
+	for i, c := range []rune{'c', 'u', 't', 'n', 'a', 'l', 'i', 'g', 'k', 'o', '@', 'e', 's'} {
+		AlphaImages[c] = alphaSubImage(i)
 	}
 
 	AudioCtx, err = audio.NewContext(44100)
