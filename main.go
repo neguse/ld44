@@ -972,7 +972,7 @@ func update(screen *ebiten.Image) error {
 
 func main() {
 	ebiten.SetMaxTPS(30)
-	if err := ebiten.Run(update, ScreenWidth, ScreenHeight, 2, "Hello, World!"); err != nil {
+	if err := ebiten.Run(update, ScreenWidth, ScreenHeight, 2, "cut'n'align"); err != nil {
 		log.Fatal(err)
 	}
 }
