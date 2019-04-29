@@ -115,6 +115,9 @@ const (
 	Cross  = 10
 	Equal  = 11
 	Period = 12
+	NumE   = 13
+	NumN   = 14
+	NumD   = 15
 )
 
 var Texture *ebiten.Image
@@ -180,6 +183,7 @@ type Game struct {
 	Score         int
 	ScoreEquation string
 	HighScore     int
+	Ticks         int
 }
 
 func NewGame() *Game {
@@ -311,6 +315,7 @@ func (g *Game) AdjustPick(cx, cy int) {
 }
 
 func (g *Game) Update() {
+	g.Ticks++
 	switch g.Step {
 	case Title:
 		if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
@@ -500,6 +505,9 @@ func (g *Game) Render(r *ebiten.Image) {
 			RenderEquation(r, g.ScoreEquation, ScreenWidth, ScreenHeight-32, true)
 		} else {
 			RenderNumber(r, g.Score, ScreenWidth, ScreenHeight-32, true)
+		}
+		if g.Step == GameOver {
+			RenderEnd(r, BoardWidth*StoneWidth/2-NumberWidth, StoneHeight*3, g.Ticks)
 		}
 	}
 }
@@ -821,6 +829,15 @@ func RenderNumber(r *ebiten.Image, n int, x, y int, rot bool) {
 	}
 }
 
+func RenderEnd(r *ebiten.Image, x, y int, ticks int) {
+	for i, n := range []int{NumE, NumN, NumD} {
+		ny := (math.Cos((float64(ticks)+float64(i))*0.1) + 1.0) * float64(BoardHeight*StoneHeight) * 0.25
+		opt := &ebiten.DrawImageOptions{}
+		opt.GeoM.Translate(float64(x+NumberWidth*i), float64(y)+ny)
+		r.DrawImage(NumberImages[n], opt)
+	}
+}
+
 func NewBoard() *Board {
 	return &Board{}
 }
@@ -866,7 +883,7 @@ func init() {
 				image.Point{NumberWidth * (x + 1), 32 + NumberHeight*(y+1)}})
 		return image.(*ebiten.Image)
 	}
-	for i := 0; i < 13; i++ {
+	for i := 0; i < 16; i++ {
 		NumberImages[i] = numberSubImage(i)
 	}
 
