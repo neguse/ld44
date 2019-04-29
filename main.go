@@ -393,13 +393,13 @@ func (g *Game) Update() {
 				g.Score += score
 				g.HighScore = maxInt(g.HighScore, g.Score)
 				g.ScoreEquation = scoreEquation
-				if g.SequentErase == 1 {
+				if g.SequentErase%4 == 1 {
 					PlaySound(S1)
-				} else if g.SequentErase == 2 {
+				} else if g.SequentErase%4 == 2 {
 					PlaySound(S2)
-				} else if g.SequentErase == 3 {
+				} else if g.SequentErase%4 == 3 {
 					PlaySound(S3)
-				} else if g.SequentErase >= 4 {
+				} else if g.SequentErase%4 == 0 {
 					PlaySound(S4)
 				}
 			} else {
