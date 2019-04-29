@@ -38,6 +38,7 @@ const (
 	Wall
 	Cursor
 	Jammer
+	Limit
 )
 
 var Colors []Color = []Color{
@@ -49,6 +50,7 @@ var Colors []Color = []Color{
 	Wall,
 	Cursor,
 	Jammer,
+	Limit,
 }
 
 type Sound int
@@ -338,8 +340,8 @@ func (g *Game) Update() {
 
 func (g *Game) CauseJammer() {
 	for i := 0; i < JammerNum; i++ {
-		x := rand.Intn(BoardWidth-2) + 1
-		y := g.Board.HeightAt(x)
+		x := rand.Intn(BoardWidth-3) + 1
+		y := g.Board.HeightAt(x) - 1
 		if y > 1 {
 			if c, ok := g.Board.At(x, y); ok {
 				*c = NewJammer()
@@ -375,6 +377,7 @@ func (g *Game) FixPick() {
 				log.Panic("fix failed", g.PickX, g.PickY-i)
 			}
 		}
+		g.PickY -= g.PickLen
 		g.Pick = g.Pick[g.PickLen:]
 		g.PickLen = 1
 		g.Step = FallStone
@@ -657,7 +660,12 @@ func (b *Board) Render(r *ebiten.Image) {
 			opt.GeoM.Translate(float64(b.OriginX), float64(b.OriginY))
 			opt.GeoM.Translate(float64(cx*StoneWidth), float64(cy*StoneHeight))
 			// bg
-			err := r.DrawImage(StoneImages[None], opt)
+			var err error
+			if cy == 0 {
+				err = r.DrawImage(StoneImages[Limit], opt)
+			} else {
+				err = r.DrawImage(StoneImages[None], opt)
+			}
 			if err != nil {
 				log.Panic(err)
 			}
@@ -692,15 +700,17 @@ func init() {
 		log.Panic(err)
 	}
 
-	stoneSubImage := func(c Color) *ebiten.Image {
+	stoneSubImage := func(i int) *ebiten.Image {
+		x := i % 8
+		y := i / 8
 		image := Texture.SubImage(
 			image.Rectangle{
-				image.Point{StoneWidth * int(c), 0},
-				image.Point{StoneWidth * (int(c) + 1), StoneHeight}})
+				image.Point{StoneWidth * x, StoneHeight * y},
+				image.Point{StoneWidth * (x + 1), StoneHeight * (y + 1)}})
 		return image.(*ebiten.Image)
 	}
 	for _, c := range Colors {
-		StoneImages[c] = stoneSubImage(c)
+		StoneImages[c] = stoneSubImage(int(c))
 	}
 
 	AudioCtx, err = audio.NewContext(44100)
