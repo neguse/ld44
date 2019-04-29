@@ -128,7 +128,7 @@ type Game struct {
 	FirstTouchLastPoint Point
 	FirstTouchCursored  bool
 
-	ConsequentErase int
+	SequentErase int
 }
 
 func (g *Game) UpdateTouch() {
@@ -261,21 +261,21 @@ func (g *Game) Update() {
 			} else {
 				g.ReservePick()
 				g.Step = Move
-				g.ConsequentErase = 0
+				g.SequentErase = 0
 			}
 		}
 	case FallStone:
 		if !g.Board.FallStone() {
 			if g.Board.MarkErase() {
 				g.Wait = 10
-				g.ConsequentErase++
-				if g.ConsequentErase == 1 {
+				g.SequentErase++
+				if g.SequentErase == 1 {
 					PlaySound(S1)
-				} else if g.ConsequentErase == 2 {
+				} else if g.SequentErase == 2 {
 					PlaySound(S2)
-				} else if g.ConsequentErase == 3 {
+				} else if g.SequentErase == 3 {
 					PlaySound(S3)
-				} else if g.ConsequentErase >= 4 {
+				} else if g.SequentErase >= 4 {
 					PlaySound(S4)
 				}
 			} else {
@@ -444,9 +444,9 @@ func (b *Board) MarkErase() bool {
 	lines = append(lines, RightUpLines()...)
 
 	for _, line := range lines {
-		conseq := 0
+		sequent := 0
 		for i := 1; i <= len(line); i++ {
-			p := line[conseq]
+			p := line[sequent]
 			if i < len(line) {
 				p2 := line[i]
 				if c, ok := b.At(p.x, p.y); ok && *c != nil {
@@ -457,16 +457,16 @@ func (b *Board) MarkErase() bool {
 					}
 				}
 			}
-			n := i - conseq
+			n := i - sequent
 			if n >= 3 {
-				for _, cp := range line[conseq:i] {
+				for _, cp := range line[sequent:i] {
 					if c, ok := b.At(cp.x, cp.y); ok && *c != nil {
 						(*c).Erased = true
 						erased = true
 					}
 				}
 			}
-			conseq = i
+			sequent = i
 		}
 	}
 	return erased
