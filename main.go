@@ -2,17 +2,21 @@ package main
 
 import (
 	"image"
+	"io/ioutil"
 	"log"
 	"math/rand"
 
-	"github.com/hajimehoshi/ebiten/inpututil"
-
 	"github.com/hajimehoshi/ebiten"
+	"github.com/hajimehoshi/ebiten/audio"
+	"github.com/hajimehoshi/ebiten/audio/vorbis"
 	"github.com/hajimehoshi/ebiten/ebitenutil"
+	"github.com/hajimehoshi/ebiten/inpututil"
 
 	_ "github.com/neguse/ld44/statik"
 	"github.com/rakyll/statik/fs"
 )
+
+const Volume = 0.4
 
 type Stone struct {
 	Color  Color
@@ -41,6 +45,24 @@ var Colors []Color = []Color{
 	Cursor,
 }
 
+type Sound int
+
+const (
+	S1 Sound = iota
+	S2
+	S3
+	S4
+)
+
+var SoundNameMap map[string]Sound = map[string]Sound{
+	"/S1.ogg": S1,
+	"/S2.ogg": S2,
+	"/S3.ogg": S3,
+	"/S4.ogg": S4,
+}
+
+var SoundMap map[Sound]*audio.Player = map[Sound]*audio.Player{}
+
 type Step int
 
 const (
@@ -66,8 +88,18 @@ const (
 )
 
 var Texture *ebiten.Image
+var AudioCtx *audio.Context
+var Music *audio.Player
 var StoneImages map[Color]*ebiten.Image
 var G *Game
+
+func PlaySound(s Sound) {
+	if s, ok := SoundMap[s]; ok {
+		s.SetVolume(Volume)
+		s.Rewind()
+		s.Play()
+	}
+}
 
 type StoneGenerator struct {
 }
@@ -95,6 +127,8 @@ type Game struct {
 	FirstTouchPoint     Point
 	FirstTouchLastPoint Point
 	FirstTouchCursored  bool
+
+	ConsequentErase int
 }
 
 func (g *Game) UpdateTouch() {
@@ -227,12 +261,23 @@ func (g *Game) Update() {
 			} else {
 				g.ReservePick()
 				g.Step = Move
+				g.ConsequentErase = 0
 			}
 		}
 	case FallStone:
 		if !g.Board.FallStone() {
 			if g.Board.MarkErase() {
 				g.Wait = 10
+				g.ConsequentErase++
+				if g.ConsequentErase == 1 {
+					PlaySound(S1)
+				} else if g.ConsequentErase == 2 {
+					PlaySound(S2)
+				} else if g.ConsequentErase == 3 {
+					PlaySound(S3)
+				} else if g.ConsequentErase >= 4 {
+					PlaySound(S4)
+				}
 			} else {
 				g.Wait = 1
 			}
@@ -555,6 +600,48 @@ func init() {
 	}
 	for _, c := range Colors {
 		StoneImages[c] = stoneSubImage(c)
+	}
+
+	AudioCtx, err = audio.NewContext(44100)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	mf, err := sfs.Open("/bgm.ogg")
+	if err != nil {
+		log.Panic(err)
+	}
+	defer mf.Close()
+	s, err := vorbis.Decode(AudioCtx, mf)
+	if err != nil {
+		log.Panic(err)
+	}
+	Music, err = audio.NewPlayer(AudioCtx, audio.NewInfiniteLoop(s, s.Length()))
+	if err != nil {
+		log.Panic(err)
+	}
+	Music.SetVolume(Volume)
+	Music.Play()
+
+	for sname, s := range SoundNameMap {
+		sf, err := sfs.Open(sname)
+		if err != nil {
+			log.Panic(err)
+		}
+		defer sf.Close()
+		v, err := vorbis.Decode(AudioCtx, sf)
+		if err != nil {
+			log.Panic(err)
+		}
+		vdata, err := ioutil.ReadAll(v)
+		if err != nil {
+			log.Panic(err)
+		}
+		p, err := audio.NewPlayerFromBytes(AudioCtx, vdata)
+		if err != nil {
+			log.Panic(err)
+		}
+		SoundMap[s] = p
 	}
 
 	G = &Game{
