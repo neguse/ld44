@@ -23,6 +23,10 @@ type Stone struct {
 	Erased bool
 }
 
+func (s *Stone) Colored() bool {
+	return s.Color == Red || s.Color == Blue || s.Color == Green || s.Color == Yellow
+}
+
 type Color int
 
 const (
@@ -33,6 +37,7 @@ const (
 	Yellow
 	Wall
 	Cursor
+	Jammer
 )
 
 var Colors []Color = []Color{
@@ -43,6 +48,7 @@ var Colors []Color = []Color{
 	Yellow,
 	Wall,
 	Cursor,
+	Jammer,
 }
 
 type Sound int
@@ -70,6 +76,7 @@ const (
 	Move
 	FallStone
 	WaitErase
+	CauseJammer
 )
 
 const (
@@ -129,6 +136,8 @@ type Game struct {
 	FirstTouchCursored  bool
 
 	SequentErase int
+
+	Turn int
 }
 
 func (g *Game) UpdateTouch() {
@@ -180,6 +189,12 @@ func (g *Game) NewColoredStone() *Stone {
 func NewWall() *Stone {
 	return &Stone{
 		Color: Wall,
+	}
+}
+
+func NewJammer() *Stone {
+	return &Stone{
+		Color: Jammer,
 	}
 }
 
@@ -259,9 +274,7 @@ func (g *Game) Update() {
 			if g.Board.Erase() {
 				g.Step = FallStone
 			} else {
-				g.ReservePick()
-				g.Step = Move
-				g.SequentErase = 0
+				g.Step = CauseJammer
 			}
 		}
 	case FallStone:
@@ -282,6 +295,30 @@ func (g *Game) Update() {
 				g.Wait = 1
 			}
 			g.Step = WaitErase
+		}
+	case CauseJammer:
+		g.Turn++
+		if g.Turn%5 == 0 {
+			g.CauseJammer()
+		}
+		g.ReservePick()
+		g.Step = Move
+		g.SequentErase = 0
+	}
+}
+
+func (g *Game) CauseJammer() {
+	n := 2
+	for i := 0; i < n; i++ {
+		x := rand.Intn(BoardWidth-2) + 1
+		y := g.Board.HeightAt(x)
+		if y > 1 {
+			if c, ok := g.Board.At(x, y); ok {
+				*c = NewJammer()
+			} else {
+			}
+		} else {
+			continue
 		}
 	}
 }
@@ -451,7 +488,7 @@ func (b *Board) MarkErase() bool {
 				p2 := line[i]
 				if c, ok := b.At(p.x, p.y); ok && *c != nil {
 					if c2, ok := b.At(p2.x, p2.y); ok && *c2 != nil {
-						if (*c).Color == (*c2).Color && (*c).Color != Wall {
+						if (*c).Color == (*c2).Color && (*c).Colored() {
 							continue
 						}
 					}
@@ -534,6 +571,16 @@ func (b *Board) RenderStone(r *ebiten.Image, cx, cy int, s *Stone) {
 
 func (b *Board) PosToCell(x, y int) (cx, cy int) {
 	return (x - b.OriginX) / StoneWidth, (y - b.OriginY) / StoneHeight
+}
+
+func (b *Board) HeightAt(x int) int {
+	for y := BoardHeight - 1; y >= 0; y-- {
+		if c, ok := b.At(x, y); ok && (*c) != nil {
+			continue
+		}
+		return y
+	}
+	return 0
 }
 
 func (b *Board) RenderCursor(r *ebiten.Image, cx, cy int) {
