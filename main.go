@@ -107,7 +107,6 @@ const (
 	ReserveNum = PickMax
 
 	JammerTurn = 5
-	JammerNum  = 3
 
 	NumberWidth  = 16
 	NumberHeight = 32
@@ -156,20 +155,32 @@ func PlaySound(s Sound) {
 	}
 }
 
-type StoneGenerator struct {
-}
-
-func (g *StoneGenerator) Next() *Stone {
-	// TODO correct rate
-	r := rand.Intn(4)
-	return &Stone{
-		Color: []Color{Red, Blue, Green, Yellow, Pink, Orange}[r],
+func (g *Game) Next() *Stone {
+	if len(g.Buffer) == 0 {
+		level := 3
+		if g.Turn > 24 {
+			level++
+		}
+		if g.Turn > 48 {
+			level++
+		}
+		if g.Turn > 72 {
+			level++
+		}
+		colors := []Color{Red, Blue, Green, Yellow, Pink, Orange}[:level]
+		rand.Shuffle(len(colors), func(i, j int) {
+			colors[i], colors[j] = colors[j], colors[i]
+		})
+		g.Buffer = colors
 	}
+	var c Color
+	c, g.Buffer = g.Buffer[0], g.Buffer[1:]
+	return &Stone{Color: c}
 }
 
 type Game struct {
 	Board                 *Board
-	Gen                   *StoneGenerator
+	Buffer                []Color
 	Pick                  []*Stone
 	PickX, PickY, PickLen int
 	Step                  Step
@@ -202,13 +213,14 @@ func NewGame() *Game {
 }
 func (g *Game) Initialize() {
 	g.Board.Initialize()
-	g.InitPick()
+	g.Buffer = nil
 	g.Step = Title
 	g.Wait = 0
 	g.SequentErase = 0
 	g.EraseNum = 0
 	g.Turn = 0
 	g.Score = 0
+	g.InitPick()
 }
 
 func (g *Game) IsFull() bool {
@@ -259,7 +271,7 @@ func (g *Game) UpdateTouch() {
 func (g *Game) ReservePick() {
 	n := ReserveNum - len(g.Pick)
 	for n > 0 {
-		g.Pick = append(g.Pick, g.Gen.Next())
+		g.Pick = append(g.Pick, g.Next())
 		n--
 	}
 }
@@ -284,6 +296,7 @@ func CalcScore(sequent, num int) (int, string) {
 }
 
 func (g *Game) InitPick() {
+	g.Pick = nil
 	g.ReservePick()
 	g.PickX = 3
 	g.PickY = PickMax
@@ -431,8 +444,12 @@ func (g *Game) Update() {
 }
 
 func (g *Game) CauseJammer() {
-	for i := 0; i < JammerNum; i++ {
-		x := rand.Intn(BoardWidth-3) + 1
+	num := (g.Turn/JammerTurn+2)%3 + 1
+	if g.Turn > 50 {
+		num++
+	}
+	for i := 0; i < num; i++ {
+		x := rand.Intn(BoardWidth-2) + 1
 		y := g.Board.HeightAt(x) - 1
 		if y > 1 {
 			if c, ok := g.Board.At(x, y); ok {
