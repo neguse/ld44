@@ -1,4 +1,3 @@
-statik -f -src asset
 set GOOS=windows
 set GOARCH=amd64
 go test

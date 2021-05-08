@@ -1,11 +1,12 @@
 package main
 
 import (
+	"embed"
 	"fmt"
 	"image"
 	"image/color"
 	"image/png"
-	"io/ioutil"
+	"io"
 	"log"
 	"math"
 	"math/rand"
@@ -15,9 +16,6 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/audio/vorbis"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
-
-	_ "github.com/neguse/ld44/statik"
-	"github.com/rakyll/statik/fs"
 )
 
 const Volume = 0.4
@@ -73,10 +71,10 @@ const (
 )
 
 var SoundNameMap map[string]Sound = map[string]Sound{
-	"/S1.ogg": S1,
-	"/S2.ogg": S2,
-	"/S3.ogg": S3,
-	"/S4.ogg": S4,
+	"asset/S1.ogg": S1,
+	"asset/S2.ogg": S2,
+	"asset/S3.ogg": S3,
+	"asset/S4.ogg": S4,
 }
 
 var SoundMap map[Sound]*audio.Player = map[Sound]*audio.Player{}
@@ -130,6 +128,9 @@ var MusicOff *audio.Player
 var StoneImages map[Color]*ebiten.Image
 var NumberImages map[int]*ebiten.Image
 var AlphaImages map[rune]*ebiten.Image
+
+//go:embed asset/*
+var asset embed.FS
 
 func PlayMusic(on bool) {
 	if on {
@@ -883,11 +884,7 @@ func init() {
 	StoneImages = make(map[Color]*ebiten.Image)
 	NumberImages = make(map[int]*ebiten.Image)
 	AlphaImages = make(map[rune]*ebiten.Image)
-	sfs, err := fs.New()
-	if err != nil {
-		log.Panic(err)
-	}
-	tf, err := sfs.Open("/texture.png")
+	tf, err := asset.Open("asset/texture.png")
 	if err != nil {
 		log.Panic(err)
 	}
@@ -938,12 +935,12 @@ func init() {
 	AudioCtx = audio.NewContext(44100)
 
 	{
-		mf, err := sfs.Open("/bgm.ogg")
+		mf, err := asset.Open("asset/bgm.ogg")
 		if err != nil {
 			log.Panic(err)
 		}
 		defer mf.Close()
-		s, err := vorbis.Decode(AudioCtx, mf)
+		s, err := vorbis.Decode(AudioCtx, mf.(io.ReadSeeker))
 		if err != nil {
 			log.Panic(err)
 		}
@@ -954,12 +951,12 @@ func init() {
 		Music.SetVolume(Volume)
 	}
 	{
-		mf, err := sfs.Open("/bgm_off.ogg")
+		mf, err := asset.Open("asset/bgm_off.ogg")
 		if err != nil {
 			log.Panic(err)
 		}
 		defer mf.Close()
-		s, err := vorbis.Decode(AudioCtx, mf)
+		s, err := vorbis.Decode(AudioCtx, mf.(io.ReadSeeker))
 		if err != nil {
 			log.Panic(err)
 		}
@@ -971,16 +968,16 @@ func init() {
 	}
 
 	for sname, s := range SoundNameMap {
-		sf, err := sfs.Open(sname)
+		sf, err := asset.Open(sname)
 		if err != nil {
 			log.Panic(err)
 		}
 		defer sf.Close()
-		v, err := vorbis.Decode(AudioCtx, sf)
+		v, err := vorbis.Decode(AudioCtx, sf.(io.ReadSeeker))
 		if err != nil {
 			log.Panic(err)
 		}
-		vdata, err := ioutil.ReadAll(v)
+		vdata, err := io.ReadAll(v)
 		if err != nil {
 			log.Panic(err)
 		}
