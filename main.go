@@ -10,12 +10,11 @@ import (
 	"math"
 	"math/rand"
 
-	"github.com/hajimehoshi/ebiten/ebitenutil"
-
-	"github.com/hajimehoshi/ebiten"
-	"github.com/hajimehoshi/ebiten/audio"
-	"github.com/hajimehoshi/ebiten/audio/vorbis"
-	"github.com/hajimehoshi/ebiten/inpututil"
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/audio"
+	"github.com/hajimehoshi/ebiten/v2/audio/vorbis"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 
 	_ "github.com/neguse/ld44/statik"
 	"github.com/rakyll/statik/fs"
@@ -131,7 +130,6 @@ var MusicOff *audio.Player
 var StoneImages map[Color]*ebiten.Image
 var NumberImages map[int]*ebiten.Image
 var AlphaImages map[rune]*ebiten.Image
-var G *Game
 
 func PlayMusic(on bool) {
 	if on {
@@ -189,7 +187,7 @@ type Game struct {
 	MouseEnabled          bool
 	DebugString           string
 
-	FirstTouchID        int
+	FirstTouchID        ebiten.TouchID
 	FirstTouchPoint     Point
 	FirstTouchLastPoint Point
 	FirstTouchCursored  bool
@@ -211,6 +209,7 @@ func NewGame() *Game {
 	g.Initialize()
 	return g
 }
+
 func (g *Game) Initialize() {
 	g.Board.Initialize()
 	g.Buffer = nil
@@ -334,7 +333,7 @@ func (g *Game) AdjustPick(cx, cy int) {
 	g.PickLen = clampInt((g.PickY-maxInt(cy, 0))+1, 0, PickMax)
 }
 
-func (g *Game) Update() {
+func (g *Game) Update() error {
 	g.Ticks++
 	switch g.Step {
 	case Title:
@@ -441,6 +440,7 @@ func (g *Game) Update() {
 			g.Initialize()
 		}
 	}
+	return nil
 }
 
 func (g *Game) CauseJammer() {
@@ -493,7 +493,7 @@ func (g *Game) FixPick() {
 	}
 }
 
-func (g *Game) Render(r *ebiten.Image) {
+func (g *Game) Draw(r *ebiten.Image) {
 	r.Fill(color.Gray{Y: 0x80})
 	/*
 		var input string
@@ -511,12 +511,12 @@ func (g *Game) Render(r *ebiten.Image) {
 	g.DebugString = ""
 	avg := g.HeightAverage()
 	noise := math.Max((8.0-avg)*0.2, 0.0)
-	g.Board.Render(r, noise)
+	g.Board.Render(r, noise, g.Wait)
 	if g.Step != Title {
 		for i, p := range g.Pick {
 			cx, cy := g.PickX, g.PickY-i
 			if cy >= 0 {
-				g.Board.RenderStone(r, cx, cy, p, noise)
+				g.Board.RenderStone(r, cx, cy, p, noise, g.Wait)
 				if i+1 == g.PickLen && g.Step == Move {
 					g.Board.RenderCursor(r, cx, cy)
 				}
@@ -753,17 +753,17 @@ func (b *Board) At(cx, cy int) (**Stone, bool) {
 	return nil, false
 }
 
-func (b *Board) RenderStone(r *ebiten.Image, cx, cy int, s *Stone, noise float64) {
+func (b *Board) RenderStone(r *ebiten.Image, cx, cy int, s *Stone, noise float64, wait int) {
 	if s == nil {
 		log.Panic("s must not nil")
 	}
-	opt := &ebiten.DrawImageOptions{}
+	opt := &ebiten.DrawImageOptions{Filter: ebiten.FilterNearest}
 	// sugoi nazo no erasing animation
 	if s.Erased {
 		opt.GeoM.Translate(-float64(StoneWidth*0.5)+3.0, -float64(StoneHeight)*0.5)
-		r := float64(G.Wait)
+		r := float64(wait)
 		opt.GeoM.Rotate(r)
-		s := float64(G.Wait) / float64(WaitEraseFrame)
+		s := float64(wait) / float64(WaitEraseFrame)
 		opt.GeoM.Scale(s*s*s, s*s*s)
 		opt.GeoM.Translate(float64(StoneWidth*0.5), float64(StoneHeight)*0.5)
 	}
@@ -771,10 +771,7 @@ func (b *Board) RenderStone(r *ebiten.Image, cx, cy int, s *Stone, noise float64
 	opt.GeoM.Translate(float64(cx*StoneWidth), float64(cy*StoneHeight))
 
 	if image, ok := StoneImages[s.Color]; ok {
-		err := r.DrawImage(image, opt)
-		if err != nil {
-			log.Panic(err)
-		}
+		r.DrawImage(image, opt)
 	}
 }
 
@@ -793,37 +790,31 @@ func (b *Board) HeightAt(x int) int {
 }
 
 func (b *Board) RenderCursor(r *ebiten.Image, cx, cy int) {
-	opt := &ebiten.DrawImageOptions{}
+	opt := &ebiten.DrawImageOptions{Filter: ebiten.FilterNearest}
 	opt.GeoM.Translate(float64(b.OriginX), float64(b.OriginY))
 	opt.GeoM.Translate(float64(cx*StoneWidth), float64(cy*StoneHeight))
 
 	if image, ok := StoneImages[Cursor]; ok {
-		err := r.DrawImage(image, opt)
-		if err != nil {
-			log.Panic(err)
-		}
+		r.DrawImage(image, opt)
 	}
 }
 
-func (b *Board) Render(r *ebiten.Image, noise float64) {
+func (b *Board) Render(r *ebiten.Image, noise float64, wait int) {
 	for cx := 0; cx < BoardWidth; cx++ {
 		for cy := 0; cy < BoardHeight; cy++ {
-			opt := &ebiten.DrawImageOptions{}
+			opt := &ebiten.DrawImageOptions{Filter: ebiten.FilterNearest}
 			opt.GeoM.Translate(float64(b.OriginX)+(rand.Float64()-0.5)*noise, float64(b.OriginY)+(rand.Float64()-0.5)*noise)
 			opt.GeoM.Translate(float64(cx*StoneWidth), float64(cy*StoneHeight))
 			// bg
-			var err error
 			if cy == 0 {
-				err = r.DrawImage(StoneImages[Limit], opt)
+				r.DrawImage(StoneImages[Limit], opt)
 			} else {
-				err = r.DrawImage(StoneImages[None], opt)
+				r.DrawImage(StoneImages[None], opt)
 			}
-			if err != nil {
-				log.Panic(err)
-			}
+
 			// Stone
 			if c, ok := b.At(cx, cy); ok && *c != nil {
-				b.RenderStone(r, cx, cy, *c, noise)
+				b.RenderStone(r, cx, cy, *c, noise, wait)
 			}
 		}
 	}
@@ -844,7 +835,7 @@ func RenderEquation(r *ebiten.Image, equation string, x, y int, rot bool) {
 		}
 	}
 	for i, c := range equation {
-		opt := &ebiten.DrawImageOptions{}
+		opt := &ebiten.DrawImageOptions{Filter: ebiten.FilterNearest}
 		if rot {
 			opt.GeoM.Rotate(math.Pi / 2)
 		}
@@ -856,7 +847,7 @@ func RenderEquation(r *ebiten.Image, equation string, x, y int, rot bool) {
 // x, y is right bottom
 func RenderAlpha(r *ebiten.Image, str string, x, y int) {
 	for i, c := range str {
-		opt := &ebiten.DrawImageOptions{}
+		opt := &ebiten.DrawImageOptions{Filter: ebiten.FilterNearest}
 		opt.GeoM.Translate(float64(x+AlphaWidth*i), float64(y))
 		r.DrawImage(AlphaImages[c], opt)
 	}
@@ -864,7 +855,7 @@ func RenderAlpha(r *ebiten.Image, str string, x, y int) {
 
 // perhaps x, y is right bottom
 func RenderNumber(r *ebiten.Image, n int, x, y int, rot bool) {
-	opt := &ebiten.DrawImageOptions{}
+	opt := &ebiten.DrawImageOptions{Filter: ebiten.FilterNearest}
 	if rot {
 		opt.GeoM.Rotate(math.Pi / 2)
 	}
@@ -878,7 +869,7 @@ func RenderNumber(r *ebiten.Image, n int, x, y int, rot bool) {
 func RenderEnd(r *ebiten.Image, x, y int, ticks int) {
 	for i, n := range []int{NumE, NumN, NumD} {
 		ny := (math.Cos((float64(ticks)+float64(i))*0.1) + 1.0) * float64(BoardHeight*StoneHeight) * 0.25
-		opt := &ebiten.DrawImageOptions{}
+		opt := &ebiten.DrawImageOptions{Filter: ebiten.FilterNearest}
 		opt.GeoM.Translate(float64(x+NumberWidth*i), float64(y)+ny)
 		r.DrawImage(NumberImages[n], opt)
 	}
@@ -905,9 +896,7 @@ func init() {
 	if texture, err = png.Decode(tf); err != nil {
 		log.Panic(err)
 	}
-	if Texture, err = ebiten.NewImageFromImage(texture, ebiten.FilterNearest); err != nil {
-		log.Panic(err)
-	}
+	Texture = ebiten.NewImageFromImage(texture)
 
 	stoneSubImage := func(i int) *ebiten.Image {
 		x := i % 8
@@ -946,10 +935,7 @@ func init() {
 		AlphaImages[c] = alphaSubImage(i)
 	}
 
-	AudioCtx, err = audio.NewContext(44100)
-	if err != nil {
-		log.Panic(err)
-	}
+	AudioCtx = audio.NewContext(44100)
 
 	{
 		mf, err := sfs.Open("/bgm.ogg")
@@ -998,29 +984,22 @@ func init() {
 		if err != nil {
 			log.Panic(err)
 		}
-		p, err := audio.NewPlayerFromBytes(AudioCtx, vdata)
-		if err != nil {
-			log.Panic(err)
-		}
+		p := audio.NewPlayerFromBytes(AudioCtx, vdata)
 		SoundMap[s] = p
 	}
 
-	G = NewGame()
 	PlayMusic(false)
 }
 
-func update(screen *ebiten.Image) error {
-	G.Update()
-	if ebiten.IsDrawingSkipped() {
-		return nil
-	}
-	G.Render(screen)
-	return nil
+func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
+	return ScreenWidth, ScreenHeight
 }
 
 func main() {
 	ebiten.SetMaxTPS(30)
-	if err := ebiten.Run(update, ScreenWidth, ScreenHeight, 2, "cut'n'align"); err != nil {
+	ebiten.SetWindowTitle("cut'n'align")
+	g := NewGame()
+	if err := ebiten.RunGame(g); err != nil {
 		log.Fatal(err)
 	}
 }
